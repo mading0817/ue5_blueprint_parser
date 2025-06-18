@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UE5 Blueprint Parser</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>UE5 蓝图层级解析工具</h1>
+        <form method="POST">
+            <textarea name="blueprint_text" placeholder="在这里粘贴从UE5复制的蓝图文本...">{{ blueprint_input }}</textarea>
+            <button type="submit" class="submit-btn">解析蓝图 (Parse Blueprint)</button>
+        </form>
+        {% if result %}
+        <pre><code>{{ result }}</code></pre>
+        {% endif %}
+    </div>
+</body>
+</html> 
