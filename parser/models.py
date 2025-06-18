@@ -13,3 +13,10 @@ class BlueprintNode:
     properties: Dict[str, Any] = field(default_factory=dict)
     children: List['BlueprintNode'] = field(default_factory=list)
     has_parent: bool = False
+
+
+@dataclass
+class Blueprint:
+    """代表一个完整的蓝图资源，包含其层级结构和元数据。"""
+    name: str
+    root_nodes: List[BlueprintNode]

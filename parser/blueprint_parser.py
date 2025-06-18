@@ -2,7 +2,7 @@ import re
 from collections import deque
 from typing import List, Dict, Optional, Tuple
 
-from .models import BlueprintNode
+from .models import BlueprintNode, Blueprint
 
 
 def parse_object_path(path_string: str) -> Optional[str]:
@@ -49,13 +49,19 @@ def build_hierarchy(objects: List[BlueprintNode]):
                     child_obj.has_parent = True
 
 
-def parse_ue_blueprint_to_nodes(blueprint_text: str) -> List[BlueprintNode]:
+def parse_ue_blueprint(blueprint_text: str) -> Optional[Blueprint]:
     """
-    主解析函数，将UE蓝图文本转换为BlueprintNode对象的列表。
+    主解析函数，将UE蓝图文本转换为Blueprint对象的列表。
     如果解析失败或输入为空，则返回空列表。
     """
     if not blueprint_text or not blueprint_text.strip():
-        return []
+        return None
+
+    # 提取蓝图名称
+    blueprint_name = "UnknownBlueprint"
+    name_match = re.search(r"/Game/.*(?:/|')(?P<asset_name>[^/.]+)\.", blueprint_text)
+    if name_match:
+        blueprint_name = name_match.group("asset_name")
 
     objects: List[BlueprintNode] = []
     object_stack = deque()
@@ -106,4 +112,4 @@ def parse_ue_blueprint_to_nodes(blueprint_text: str) -> List[BlueprintNode]:
         if not obj.has_parent and 'Slot' not in obj.class_type and 'WidgetSlotPair' not in obj.class_type
     ]
 
-    return root_nodes
+    return Blueprint(name=blueprint_name, root_nodes=root_nodes)

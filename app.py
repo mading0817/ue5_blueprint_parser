@@ -1,6 +1,6 @@
 from flask import Flask, request, render_template
-from parser.blueprint_parser import parse_ue_blueprint_to_nodes
-from parser.formatters import format_nodes_to_markdown
+from parser.blueprint_parser import parse_ue_blueprint
+from parser.formatters import format_blueprint_to_markdown
 
 # 初始化Flask应用
 app = Flask(__name__)
@@ -17,11 +17,11 @@ def index():
         input_text = request.form.get('blueprint_text', '')
 
         # 1. 调用解析器获取结构化数据
-        nodes = parse_ue_blueprint_to_nodes(input_text)
+        blueprint_data = parse_ue_blueprint(input_text)
 
         # 2. 调用格式化器将数据转换为Markdown字符串
-        if nodes:
-            result_text = format_nodes_to_markdown(nodes)
+        if blueprint_data and blueprint_data.root_nodes:
+            result_text = format_blueprint_to_markdown(blueprint_data)
         else:
             # 如果没有解析到任何节点，提供一个友好的提示
             if input_text.strip():  # 只有在用户确实输入了内容时才显示错误

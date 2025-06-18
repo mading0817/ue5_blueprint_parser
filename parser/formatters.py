@@ -1,4 +1,4 @@
-from parser.models import BlueprintNode
+from parser.models import BlueprintNode, Blueprint
 from typing import List
 
 
@@ -26,18 +26,18 @@ def _to_markdown_tree_recursive(node: BlueprintNode, indent_level: int = 0) -> s
     return result_string
 
 
-def format_nodes_to_markdown(nodes: List[BlueprintNode]) -> str:
+def format_blueprint_to_markdown(blueprint: Blueprint) -> str:
     """
     将一个BlueprintNode的列表格式化为完整的Markdown层级树。
 
-    :param nodes: 根节点的列表。
+    :param blueprint: 根节点的列表。
     :return: 完整的Markdown格式字符串。
     """
-    if not nodes:
+    if not blueprint or not blueprint.root_nodes:
         return "没有找到可显示的节点。(No displayable nodes found.)"
 
-    final_output = "### UE5 蓝图层级结构\n\n"
-    for root in nodes:
+    final_output = f"#### {blueprint.name} Blueprint Hierarchy\n\n"
+    for root in blueprint.root_nodes:
         final_output += _to_markdown_tree_recursive(root)
 
     return final_output
