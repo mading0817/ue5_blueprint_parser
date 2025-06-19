@@ -325,19 +325,18 @@ def _establish_connection(source_node: GraphNode, source_pin: GraphPin, target_n
 def find_entry_nodes(nodes: List[GraphNode]) -> List[GraphNode]:
     """
     识别图的入口节点
-    优先级: 事件节点 > 函数入口节点 > 宏入口节点 > 纯函数节点
+    包括所有事件节点和自定义事件节点
     """
     entry_nodes = []
     potential_entries = []
     
     for node in nodes:
-        # 优先级 1: 事件节点 (最常见的入口)
-        if 'K2Node_Event' in node.class_type:
+        # 优先级 1: 事件节点和自定义事件节点 (都是独立的入口点)
+        if 'K2Node_Event' in node.class_type or 'K2Node_CustomEvent' in node.class_type:
             entry_nodes.append(node)
         
-        # 优先级 2: 函数入口节点 (CustomEvent, FunctionEntry等)
+        # 优先级 2: 其他潜在入口节点
         elif any(entry_type in node.class_type for entry_type in [
-            'K2Node_CustomEvent',
             'K2Node_FunctionEntry', 
             'K2Node_CallFunction',
             'K2Node_MacroInstance'

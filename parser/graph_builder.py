@@ -121,6 +121,19 @@ class GraphTraverser:
                 if match:
                     var_name = match.group(1)
             
+            # 检查是否是成员变量访问（有self引脚）
+            if source_node.input_connections:
+                # 查找self引脚
+                for pin in source_node.pins:
+                    if pin.pin_name.lower() == "self" and pin.direction == "input":
+                        if pin.pin_id in source_node.input_connections:
+                            # 递归解析父对象
+                            parent_node = source_node.input_connections[pin.pin_id]
+                            parent_obj = self._resolve_recursive_source(parent_node)
+                            if parent_obj and parent_obj != "<unknown>":
+                                return f"{parent_obj}.{var_name}"
+                        break
+            
             return f"{var_name}"
         
         # 变量设置节点
@@ -139,7 +152,23 @@ class GraphTraverser:
                 if match:
                     func_name = match.group(1)
             
-            return f"{func_name}()"
+            # 尝试解析函数调用的目标对象（self引脚）
+            target_obj = None
+            if source_node.input_connections:
+                # 查找self引脚
+                for pin in source_node.pins:
+                    if pin.pin_name.lower() in ["self", "target"] and pin.direction == "input":
+                        if pin.pin_id in source_node.input_connections:
+                            # 递归解析self引脚的数据源
+                            target_source_node = source_node.input_connections[pin.pin_id]
+                            target_obj = self._resolve_recursive_source(target_source_node)
+                        break
+            
+            # 如果有目标对象，格式化为 TargetObject.FunctionName()
+            if target_obj:
+                return f"{target_obj}.{func_name}()"
+            else:
+                return f"{func_name}()"
         
         # 动态转换节点
         elif "K2Node_DynamicCast" in node_type:
@@ -166,6 +195,28 @@ class GraphTraverser:
                 upstream = next(iter(source_node.input_connections.values()))
                 return self._resolve_recursive_source(upstream, via_pin_name)
             return "<unknown>"
+        
+        # CustomEvent 节点 - 作为委托绑定的事件处理函数
+        elif "K2Node_CustomEvent" in node_type:
+            # 从节点名称或属性中获取事件名称
+            event_name = source_node.properties.get("CustomFunctionName", source_node.node_name)
+            # 去除可能的引号
+            event_name = event_name.strip('"')
+            return event_name
+        
+        # LatentAbilityCall 节点 - 异步任务作为数据源
+        elif "K2Node_LatentAbilityCall" in node_type:
+            # 异步任务通常通过其输出引脚提供数据
+            # via_pin_name 包含了具体的输出引脚名称
+            if via_pin_name:
+                # 将引脚名称转换为更易读的格式
+                # 例如 "Payload Event Magnitude" -> "Payload.EventMagnitude"
+                # 或 "Payload_EventMagnitude" -> "Payload.EventMagnitude"
+                readable_pin = via_pin_name.replace("_", " ")  # 先处理下划线
+                readable_pin = readable_pin.replace(" ", "_")  # 保持原格式用于测试
+                return f"AsyncTask.{readable_pin}"
+            else:
+                return "AsyncTask"
         
         # 默认情况
         else:

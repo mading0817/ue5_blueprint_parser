@@ -264,42 +264,54 @@ class MarkdownGraphFormatter:
 
         from .graph_builder import GraphTraverser
         traverser = GraphTraverser(graph)
-        sequence = traverser.get_execution_sequence()
-        if not sequence:
-            return "// 无执行序列"
-
+        
         lines: list[str] = []
-        list_counter: int | None = None  # None 表示当前不是有序列表上下文
-
-        # 遍历执行序列
-        for idx, node in enumerate(sequence):
-            node_type = node.class_type
-
-            # 事件节点 → 标题
-            if "K2Node_Event" in node_type:
-                event_name = self._extract_event_name(node)
-                provides_pin = self._find_first_output_pin_name(node)
-                lines.append(f"#### Event: {event_name} (provides: {provides_pin})")
-                continue  # 事件节点不参与后续编号
-
-            # ExecutionSequence 节点 → 重置编号
-            if "K2Node_ExecutionSequence" in node_type:
-                list_counter = 1  # 开启有序列表
-                continue  # 不单独生成行
-
-            # 生成节点行文本
-            node_line = self._format_node(node, traverser)
-            if not node_line:
+        
+        # 处理所有入口节点（可能有多个事件）
+        for entry_node in graph.entry_nodes:
+            # 获取此入口节点的执行序列
+            sequence = traverser.find_execution_path(entry_node)
+            if not sequence:
                 continue
+                
+            list_counter: int | None = None  # None 表示当前不是有序列表上下文
 
-            # 前缀处理：有序列表 or 普通行
-            if list_counter is not None:
-                lines.append(f"{list_counter}. {node_line}")
-                list_counter += 1
-            else:
-                lines.append(f"- {node_line}")
+            # 遍历执行序列
+            for idx, node in enumerate(sequence):
+                node_type = node.class_type
 
-        return "\n".join(lines)
+                # 事件节点 → 标题
+                if "K2Node_Event" in node_type or "K2Node_CustomEvent" in node_type:
+                    event_name = self._extract_event_name(node)
+                    if "K2Node_CustomEvent" in node_type:
+                        # CustomEvent从属性中获取名称
+                        event_name = node.properties.get("CustomFunctionName", node.node_name).strip('"')
+                    provides_pin = self._find_first_output_pin_name(node)
+                    lines.append(f"#### Event: {event_name} (provides: {provides_pin})")
+                    continue  # 事件节点不参与后续编号
+
+                # ExecutionSequence 节点 → 重置编号
+                if "K2Node_ExecutionSequence" in node_type:
+                    list_counter = 1  # 开启有序列表
+                    continue  # 不单独生成行
+
+                # 生成节点行文本
+                node_line = self._format_node(node, traverser)
+                if not node_line:
+                    continue
+
+                # 前缀处理：有序列表 or 普通行
+                if list_counter is not None:
+                    lines.append(f"{list_counter}. {node_line}")
+                    list_counter += 1
+                else:
+                    lines.append(f"- {node_line}")
+            
+            # 在事件之间添加空行（如果不是最后一个事件）
+            if entry_node != graph.entry_nodes[-1] and sequence:
+                lines.append("")
+
+        return "\n".join(lines) if lines else "// 无执行序列"
 
     # ------------------------------ INTERNAL HELPERS -----------------------------
 
@@ -371,6 +383,41 @@ class MarkdownGraphFormatter:
             cls_name = cls_all[-1] if cls_all else str(target_class_full).split('.')[-1].split("'")[0]
             source_obj = traverser.resolve_data_flow(node, "Object")
             return f"cast({source_obj} as {cls_name})"
+
+        # --- 委托/事件绑定 ---
+        if "K2Node_AssignDelegate" in t:
+            # 获取事件源对象（self引脚）
+            source_obj = traverser.resolve_data_flow(node, "self") or "self"
+            
+            # 获取事件名称（从DelegateReference属性）
+            delegate_ref = node.properties.get("DelegateReference", "")
+            event_name = self._extract_member_name(delegate_ref)
+            
+            # 获取事件处理函数（Delegate引脚连接的CustomEvent）
+            handler = traverser.resolve_data_flow(node, "Delegate") or "Handler"
+            
+            # 格式化为事件绑定语法
+            return f"{source_obj}.{event_name} += {handler}"
+
+        # --- 异步任务（Latent Call）---
+        if "K2Node_LatentAbilityCall" in t:
+            # 从ProxyFactoryFunctionName获取真实函数名
+            func_name = node.properties.get("ProxyFactoryFunctionName", "UnknownAsyncFunction")
+            # 去除可能的引号
+            func_name = func_name.strip('"')
+            
+            # 获取参数（如果有）
+            params = []
+            for pin in node.pins:
+                if pin.direction == "input" and pin.pin_type not in ["exec", "delegate"]:
+                    param_value = traverser.resolve_data_flow(node, pin.pin_name)
+                    if param_value:
+                        params.append(f"{pin.pin_name}={param_value}")
+            
+            param_str = ", ".join(params) if params else "..."
+            
+            # 格式化为异步任务创建
+            return f"AsyncTask = {func_name}({param_str})"
 
         # 默认：忽略 Knot / VariableGet 等
         if "K2Node_Knot" in t or "K2Node_VariableGet" in t:
