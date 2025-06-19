@@ -1,7 +1,7 @@
 from flask import Flask, request, render_template, jsonify
 from parser.blueprint_parser import parse_ue_blueprint
 from parser.graph_parser import parse_blueprint_graph
-from parser.formatters import format_blueprint_to_markdown, format_graph_to_pseudocode
+from parser.formatters import format_blueprint_to_markdown, format_graph_to_pseudocode, MarkdownGraphFormatter
 
 # 初始化Flask应用
 app = Flask(__name__)
@@ -60,11 +60,12 @@ def parse_graph():
             return render_template('graph.html', 
                                  error="无法解析Graph文本。请检查输入格式。")
         
-        # 格式化为伪代码
-        pseudocode_output = format_graph_to_pseudocode(blueprint_graph)
+        # 使用新的Markdown格式化器
+        formatter = MarkdownGraphFormatter()
+        markdown_output = formatter.format(blueprint_graph)
         
         return render_template('graph.html', 
-                             result=pseudocode_output,
+                             result=markdown_output,
                              input_text=graph_text,
                              graph_name=graph_name)
     

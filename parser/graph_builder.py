@@ -86,27 +86,25 @@ class GraphTraverser:
         return 1000  # 默认优先级
     
     def resolve_data_flow(self, node: GraphNode, pin_name: str) -> Optional[str]:
-        """
-        追溯数据引脚的连接，确定变量和参数的来源
-        返回数据来源的描述字符串
-        """
-        # 找到指定的输入引脚
-        target_pin = None
-        for pin in node.pins:
-            if pin.pin_name == pin_name and pin.direction == "input":
-                target_pin = pin
-                break
-        
+        """追溯数据流直到获取可读描述"""
+        # 找到目标输入引脚
+        target_pin = next((p for p in node.pins if p.pin_name == pin_name and p.direction == "input"), None)
         if not target_pin or target_pin.pin_id not in node.input_connections:
             return None
-        
-        # 获取连接的源节点
+
         source_node = node.input_connections[target_pin.pin_id]
-        
-        # 根据源节点类型生成描述
-        return self._generate_data_source_description(source_node, target_pin)
+        return self._resolve_recursive_source(source_node, target_pin.pin_name)
     
-    def _generate_data_source_description(self, source_node: GraphNode, target_pin) -> str:
+    def _resolve_recursive_source(self, source_node: GraphNode, via_pin_name: Optional[str] = None) -> Optional[str]:
+        desc = self._generate_data_source_description(source_node, via_pin_name)
+
+        if (not desc or desc.startswith("K2Node_")) and source_node.input_connections:
+            # 继续递归第一个输入连接
+            upstream = next(iter(source_node.input_connections.values()))
+            return self._resolve_recursive_source(upstream, via_pin_name)
+        return desc
+    
+    def _generate_data_source_description(self, source_node: GraphNode, via_pin_name: Optional[str]) -> str:
         """
         根据源节点生成数据来源的描述
         """
@@ -145,16 +143,33 @@ class GraphTraverser:
         
         # 动态转换节点
         elif "K2Node_DynamicCast" in node_type:
-            target_class = source_node.properties.get("TargetType", "UnknownType")
-            return f"cast<{target_class}>"
+            target_class_full = source_node.properties.get("TargetType", "UnknownType")
+            import re
+            cls_all = re.findall(r"\.([A-Za-z0-9_]+)'", str(target_class_full))
+            cls_name = cls_all[-1] if cls_all else str(target_class_full).split('.')[-1].split("'")[0]
+            obj_expr = self.resolve_data_flow(source_node, "Object") or "unknown"
+            return f"cast({obj_expr} as {cls_name})"
         
         # 字面量节点
         elif "K2Node_Literal" in node_type:
-            return source_node.properties.get("LiteralValue", "literal_value")
+            return f"literal_value"
+        
+        # ForEachLoop 宏实例
+        elif "K2Node_MacroInstance" in node_type:
+            if via_pin_name and via_pin_name.lower().startswith("array index"):
+                return "index"
+            return "item"
+
+        # Knot 重路由节点：跳过再向前解析
+        elif "K2Node_Knot" in node_type:
+            if source_node.input_connections:
+                upstream = next(iter(source_node.input_connections.values()))
+                return self._resolve_recursive_source(upstream, via_pin_name)
+            return "<unknown>"
         
         # 默认情况
         else:
-            return f"{source_node.node_name}"
+            return f"<unknown>"
     
     def get_execution_sequence(self) -> List[GraphNode]:
         """

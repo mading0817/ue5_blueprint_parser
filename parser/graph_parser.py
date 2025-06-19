@@ -1,7 +1,15 @@
 import re
 from typing import List, Dict, Optional
 from .models import GraphPin, GraphNode, BlueprintGraph
+import uuid
 
+# 生成唯一 GUID
+_defalt_guid_counter = 0
+
+def _generate_temp_guid() -> str:
+    global _defalt_guid_counter
+    _defalt_guid_counter += 1
+    return f"TEMP-{_defalt_guid_counter:08x}"
 
 def parse_graph_nodes(graph_text: str) -> List[GraphNode]:
     """
@@ -58,6 +66,9 @@ def _parse_single_node(lines: List[str], start_index: int) -> tuple[Optional[Gra
         
         # 检测节点结束
         if line == 'End Object':
+            # 在函数 _parse_single_node 结束前, 若 node_guid 为空则填充
+            if not node.node_guid:
+                node.node_guid = _generate_temp_guid()
             return node, i + 1
         
         # 检测嵌套引脚开始
@@ -114,7 +125,19 @@ def _parse_single_pin(lines: List[str], start_index: int) -> tuple[Optional[Grap
         if line == 'End Object':
             return pin, i + 1
         
-        # 解析引脚属性
+        # 若发现 LinkedTo 起始但未闭合，合并后续行
+        if 'LinkedTo=(' in line and ')' not in line:
+            combined = [line]
+            j = i + 1
+            while j < len(lines):
+                combined.append(lines[j].strip())
+                if ')' in lines[j]:
+                    break
+                j += 1
+            line = ' '.join(combined)
+            i = j  # 跳过已合并的行
+        
+        # 解析引脚属性（可能是合并后的单行）
         _parse_pin_property(line, pin)
         i += 1
     
@@ -155,11 +178,10 @@ def _parse_pin_property(line: str, pin: GraphPin):
     """
     解析引脚属性行
     """
-    # 连接信息 - 必须先处理，因为连接信息中也包含PinId
+    # 连接信息 - 支持多行 LinkedTo
     linked_match = re.search(r'LinkedTo=\(([^)]+)\)', line)
     if linked_match:
         links_str = linked_match.group(1)
-        # 解析连接信息，格式如: NodeGuid=xxx,PinId=yyy
         link_parts = re.findall(r'NodeGuid=([A-F0-9-]+),PinId=([A-F0-9-]+)', links_str)
         for node_guid, pin_id in link_parts:
             pin.linked_to.append({
@@ -302,13 +324,43 @@ def _establish_connection(source_node: GraphNode, source_pin: GraphPin, target_n
 
 def find_entry_nodes(nodes: List[GraphNode]) -> List[GraphNode]:
     """
-    识别图的入口节点（通常是事件节点）
+    识别图的入口节点
+    优先级: 事件节点 > 函数入口节点 > 宏入口节点 > 纯函数节点
     """
     entry_nodes = []
+    potential_entries = []
+    
     for node in nodes:
-        # 事件节点通常以K2Node_Event开头
+        # 优先级 1: 事件节点 (最常见的入口)
         if 'K2Node_Event' in node.class_type:
             entry_nodes.append(node)
+        
+        # 优先级 2: 函数入口节点 (CustomEvent, FunctionEntry等)
+        elif any(entry_type in node.class_type for entry_type in [
+            'K2Node_CustomEvent',
+            'K2Node_FunctionEntry', 
+            'K2Node_CallFunction',
+            'K2Node_MacroInstance'
+        ]):
+            potential_entries.append(node)
+    
+    # 如果没有找到事件节点，使用备选入口
+    if not entry_nodes and potential_entries:
+        # 进一步筛选: 查找没有执行输入连接的节点
+        for node in potential_entries:
+            has_exec_input = False
+            for pin in node.pins:
+                if pin.pin_type == "exec" and pin.direction == "input" and pin.linked_to:
+                    has_exec_input = True
+                    break
+            
+            # 没有执行输入连接的节点可能是入口点
+            if not has_exec_input:
+                entry_nodes.append(node)
+    
+    # 如果仍然没有找到入口，返回所有潜在入口
+    if not entry_nodes and potential_entries:
+        entry_nodes = potential_entries[:1]  # 至少返回一个
     
     return entry_nodes
 

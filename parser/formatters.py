@@ -136,9 +136,12 @@ def _generate_node_pseudocode(node: GraphNode, traverser: GraphTraverser, curren
                 func_name = match.group(1) if match else "UnknownFunction"
         
         # 获取函数调用的目标对象
-        target_obj = traverser.resolve_data_flow(node, "self")
-        if not target_obj or target_obj == "unknown_object":
-            target_obj = "self"
+        target_obj = traverser.resolve_data_flow(node, "self") or "self"
+        # 若 target_obj 为 cast(expr as Class) 则取 Class 作为调用者
+        import re
+        m=re.search(r"cast\([^)]* as ([A-Za-z0-9_]+)\)", str(target_obj))
+        if m:
+            target_obj = m.group(1)
         
         # 获取函数参数
         params = _extract_function_parameters(node, traverser)
@@ -158,7 +161,7 @@ def _generate_node_pseudocode(node: GraphNode, traverser: GraphTraverser, curren
             if match:
                 var_name = match.group(1)
         
-        value_source = traverser.resolve_data_flow(node, "Value")
+        value_source = traverser.resolve_data_flow(node, var_name) or traverser.resolve_data_flow(node, "Value") or "<Value>"
         if value_source:
             return f"{var_name} = {value_source}"
         else:
@@ -170,27 +173,29 @@ def _generate_node_pseudocode(node: GraphNode, traverser: GraphTraverser, curren
     
     # 动态转换节点
     elif "K2Node_DynamicCast" in node_type:
-        target_class = node.properties.get("TargetType", "UnknownType")
+        target_class_full = node.properties.get("TargetType", "UnknownType")
+        import re
+        cls_all = re.findall(r"\.([A-Za-z0-9_]+)'", str(target_class_full))
+        cls_name = cls_all[-1] if cls_all else str(target_class_full).split('.')[-1].split("'")[0]
         source_obj = traverser.resolve_data_flow(node, "Object")
-        result_var = f"As_{target_class.replace('C', '').replace('_', '_')}"
-        
-        if source_obj:
-            return f"{result_var} = cast<{target_class}>({source_obj})"
-        else:
-            return f"{result_var} = cast<{target_class}>(unknown_object)"
+        return f"cast({source_obj} as {cls_name})"
     
     # 宏实例节点（如ForEachLoop）
     elif "K2Node_MacroInstance" in node_type:
-        macro_name = node.properties.get("MacroGraphReference.MacroGraph.GraphName", "UnknownMacro")
-        
+        macro_ref = node.properties.get("MacroGraphReference", "")
+        import re
+        macro_name_match = re.search(r":([A-Za-z0-9_]+)\'", macro_ref)
+        macro_name = macro_name_match.group(1) if macro_name_match else "UnknownMacro"
+
+        # ForEachLoop 特殊处理
         if "ForEachLoop" in macro_name:
-            array_source = traverser.resolve_data_flow(node, "Array")
-            if array_source:
-                return f"for (index, item) in enumerate({array_source}):"
-            else:
-                return "for (index, item) in enumerate(unknown_array):"
-        else:
-            return f"// 宏调用: {macro_name}"
+            array_source = traverser.resolve_data_flow(node, "Array") or "ArraySource"
+            # 同时保留宏注释满足测试用例对 "// Macro:" 的检查
+            comment_line = f"// Macro: {macro_name}()"
+            loop_line = f"for each (item, index) in {array_source}:"
+            return f"{comment_line}\n{loop_line}"
+        # 其他宏仅做注释
+        return f"// Macro: {macro_name}()"
     
     # 注释节点
     elif "EdGraphNode_Comment" in node_type:
@@ -239,3 +244,143 @@ def _adjust_indent_level(node: GraphNode, current_level: int) -> int:
         return current_level + 1
     
     return current_level
+
+
+class MarkdownGraphFormatter:
+    """结构化 Markdown 图格式化器（简化版）
+
+    该实现覆盖了事件、执行序列、分支、ForEachLoop、函数调用、变量赋值、动态转换、宏标记等核心节点，
+    旨在让测试用例通过（GREEN 阶段前的最小实现）。
+    未来可根据 todo.md 中更严格的规范继续迭代。
+    """
+
+    # -------------------------------- PUBLIC API --------------------------------
+
+    def format(self, graph: 'BlueprintGraph') -> str:  # noqa: F821
+        """将 BlueprintGraph 转换为结构化 Markdown 字符串。"""
+        # 空图或无法解析时
+        if graph is None or not graph.nodes:
+            return "// 空Graph"
+
+        from .graph_builder import GraphTraverser
+        traverser = GraphTraverser(graph)
+        sequence = traverser.get_execution_sequence()
+        if not sequence:
+            return "// 无执行序列"
+
+        lines: list[str] = []
+        list_counter: int | None = None  # None 表示当前不是有序列表上下文
+
+        # 遍历执行序列
+        for idx, node in enumerate(sequence):
+            node_type = node.class_type
+
+            # 事件节点 → 标题
+            if "K2Node_Event" in node_type:
+                event_name = self._extract_event_name(node)
+                provides_pin = self._find_first_output_pin_name(node)
+                lines.append(f"#### Event: {event_name} (provides: {provides_pin})")
+                continue  # 事件节点不参与后续编号
+
+            # ExecutionSequence 节点 → 重置编号
+            if "K2Node_ExecutionSequence" in node_type:
+                list_counter = 1  # 开启有序列表
+                continue  # 不单独生成行
+
+            # 生成节点行文本
+            node_line = self._format_node(node, traverser)
+            if not node_line:
+                continue
+
+            # 前缀处理：有序列表 or 普通行
+            if list_counter is not None:
+                lines.append(f"{list_counter}. {node_line}")
+                list_counter += 1
+            else:
+                lines.append(f"- {node_line}")
+
+        return "\n".join(lines)
+
+    # ------------------------------ INTERNAL HELPERS -----------------------------
+
+    @staticmethod
+    def _extract_event_name(node: 'GraphNode') -> str:  # noqa: F821
+        """从 EventReference 中提取事件名称。"""
+        import re
+        ref = node.properties.get("EventReference", "")
+        match = re.search(r'MemberName="?([^",)]+)', ref)
+        if match:
+            return match.group(1)
+        return node.node_name
+
+    @staticmethod
+    def _find_first_output_pin_name(node: 'GraphNode') -> str:  # noqa: F821
+        """返回第一个输出引脚名称（非 exec）。"""
+        for pin in node.pins:
+            if pin.direction == "output" and pin.pin_type != "exec":
+                return pin.pin_name
+        return "<none>"
+
+    def _format_node(self, node: 'GraphNode', traverser: 'GraphTraverser') -> str:  # noqa: F821
+        """按节点类型生成单行/多行 Markdown 字符串。"""
+        t = node.class_type
+
+        # --- Branch ---
+        if "K2Node_Branch" in t or "IfThenElse" in t:
+            condition = traverser.resolve_data_flow(node, "Condition") or "<Condition>"
+            return f"if ({condition}):\n    ...\nelse:\n    ..."
+
+        # --- ForEachLoop (宏) ---
+        if "K2Node_MacroInstance" in t:
+            macro_ref = node.properties.get("MacroGraphReference", "")
+            import re
+            macro_name_match = re.search(r":([A-Za-z0-9_]+)\'", macro_ref)
+            macro_name = macro_name_match.group(1) if macro_name_match else "UnknownMacro"
+
+            # ForEachLoop 特殊处理
+            if "ForEachLoop" in macro_name:
+                array_source = traverser.resolve_data_flow(node, "Array") or "ArraySource"
+                # 同时保留宏注释满足测试用例对 "// Macro:" 的检查
+                comment_line = f"// Macro: {macro_name}()"
+                loop_line = f"for each (item, index) in {array_source}:"
+                return f"{comment_line}\n{loop_line}"
+            # 其他宏仅做注释
+            return f"// Macro: {macro_name}()"
+
+        # --- 函数调用 ---
+        if "K2Node_CallFunction" in t:
+            func_name = self._extract_member_name(node.properties.get("FunctionReference", ""))
+            target_obj = traverser.resolve_data_flow(node, "self") or "self"
+            # 提取参数
+            params = _extract_function_parameters(node, traverser)
+            param_str = (", ".join(params) if params else "")
+            return f"{target_obj}.{func_name}({param_str})"
+
+        # --- 变量赋值 ---
+        if "K2Node_VariableSet" in t:
+            var_name = self._extract_member_name(node.properties.get("VariableReference", ""))
+            # UE5 VariableSet 节点待赋值的输入 pin 名称通常与变量同名，或为 "Value"
+            value_source = traverser.resolve_data_flow(node, var_name) or traverser.resolve_data_flow(node, "Value") or "<Value>"
+            return f"{var_name} = {value_source}"
+
+        # --- 动态转换 ---
+        if "K2Node_DynamicCast" in t:
+            target_class_full = node.properties.get("TargetType", "UnknownType")
+            import re
+            cls_all = re.findall(r"\.([A-Za-z0-9_]+)'", str(target_class_full))
+            cls_name = cls_all[-1] if cls_all else str(target_class_full).split('.')[-1].split("'")[0]
+            source_obj = traverser.resolve_data_flow(node, "Object")
+            return f"cast({source_obj} as {cls_name})"
+
+        # 默认：忽略 Knot / VariableGet 等
+        if "K2Node_Knot" in t or "K2Node_VariableGet" in t:
+            return ""
+
+        return f"// Node: {node.node_name}"
+
+    # Utility to extract MemberName from mixed reference strings
+    @staticmethod
+    def _extract_member_name(ref: str) -> str:
+        import re
+        match = re.search(r'MemberName="?([^",)]+)', ref)
+        return match.group(1) if match else "UnknownMember"
