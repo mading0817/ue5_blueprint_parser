@@ -1,37 +1,82 @@
-from flask import Flask, request, render_template
+from flask import Flask, request, render_template, jsonify
 from parser.blueprint_parser import parse_ue_blueprint
-from parser.formatters import format_blueprint_to_markdown
+from parser.graph_parser import parse_blueprint_graph
+from parser.formatters import format_blueprint_to_markdown, format_graph_to_pseudocode
 
 # 初始化Flask应用
 app = Flask(__name__)
 
 
-@app.route('/', methods=['GET', 'POST'])
+@app.route('/')
 def index():
-    """
-    处理Web请求，协调解析器和格式化器，并渲染最终页面。
-    """
-    result_text = ""
-    input_text = ""
-    if request.method == 'POST':
-        input_text = request.form.get('blueprint_text', '')
+    """主页路由，显示解析表单"""
+    return render_template('index.html')
 
-        # 1. 调用解析器获取结构化数据
-        blueprint_data = parse_ue_blueprint(input_text)
 
-        # 2. 调用格式化器将数据转换为Markdown字符串
-        if blueprint_data and blueprint_data.root_nodes:
-            result_text = format_blueprint_to_markdown(blueprint_data)
-        else:
-            # 如果没有解析到任何节点，提供一个友好的提示
-            if input_text.strip():  # 只有在用户确实输入了内容时才显示错误
-                result_text = "解析失败：无法找到根节点或蓝图格式有误。\\n(Parsing failed: Could not find root node or the format is incorrect.)"
-            else:
-                result_text = "请输入蓝图内容。(Please enter blueprint content.)"
+@app.route('/parse', methods=['POST'])
+def parse_blueprint():
+    """解析蓝图Widget层级结构"""
+    blueprint_text = request.form.get('blueprint_text', '')
+    
+    if not blueprint_text.strip():
+        return render_template('index.html', 
+                             error="请输入蓝图文本内容。")
+    
+    try:
+        # 解析蓝图
+        blueprint = parse_ue_blueprint(blueprint_text)
+        
+        if not blueprint:
+            return render_template('index.html', 
+                                 error="无法解析蓝图文本。请检查输入格式。")
+        
+        # 格式化为Markdown
+        markdown_output = format_blueprint_to_markdown(blueprint)
+        
+        return render_template('index.html', 
+                             result=markdown_output,
+                             input_text=blueprint_text)
+    
+    except Exception as e:
+        return render_template('index.html', 
+                             error=f"解析过程中发生错误: {str(e)}")
 
-    # 渲染HTML页面，并传入结果
-    # 使用 render_template 来渲染外部HTML文件
-    return render_template('index.html', result=result_text, blueprint_input=input_text)
+
+@app.route('/parse_graph', methods=['POST'])
+def parse_graph():
+    """解析蓝图Graph逻辑并生成伪代码"""
+    graph_text = request.form.get('graph_text', '')
+    graph_name = request.form.get('graph_name', 'EventGraph')
+    
+    if not graph_text.strip():
+        return render_template('graph.html', 
+                             error="请输入Graph文本内容。")
+    
+    try:
+        # 解析Graph
+        blueprint_graph = parse_blueprint_graph(graph_text, graph_name)
+        
+        if not blueprint_graph:
+            return render_template('graph.html', 
+                                 error="无法解析Graph文本。请检查输入格式。")
+        
+        # 格式化为伪代码
+        pseudocode_output = format_graph_to_pseudocode(blueprint_graph)
+        
+        return render_template('graph.html', 
+                             result=pseudocode_output,
+                             input_text=graph_text,
+                             graph_name=graph_name)
+    
+    except Exception as e:
+        return render_template('graph.html', 
+                             error=f"解析Graph过程中发生错误: {str(e)}")
+
+
+@app.route('/graph')
+def graph_page():
+    """Graph解析页面"""
+    return render_template('graph.html')
 
 
 # 启动Web服务器
