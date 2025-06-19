@@ -1,0 +1,59 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Refactoring Guide: UE5 Blueprint Parser
+
+This document outlines the architectural principles for refactoring the UE5 Blueprint Parser. The primary goal is to create a modular, extensible system for converting `.uasset` blueprint text into a human-readable format, mainly for consumption by Large Language Models (LLMs).
+
+## Core Architecture
+
+The system is divided into four distinct layers:
+
+1.  **Data Models (`parser/models.py`)**:
+    *   Defines the core data structures.
+    *   The primary class is `BlueprintNode`, implemented as a Python `@dataclass`. It represents a generic node (like a Widget or a Graph element) in the blueprint hierarchy.
+
+2.  **Parser Engine (`parser/blueprint_parser.py`)**:
+    *   Responsible for parsing the raw blueprint text.
+    *   Its sole output is a structured representation of the blueprint, typically a tree of `BlueprintNode` objects.
+    *   It should not contain any formatting or presentation logic.
+
+3.  **Formatters (`parser/formatters.py`)**:
+    *   Takes the `BlueprintNode` object tree from the parser.
+    *   Converts this structured data into different output formats.
+    *   The primary format is a **Markdown tree** for LLM context.
+    *   Future formats could include JSON, pseudo-code for Graphs, or Mermaid diagrams.
+
+4.  **Application Layer (`app.py`)**:
+    *   The user-facing part of the tool (a Flask web application).
+    *   It orchestrates the process: receives user input, calls the parser, passes the result to the appropriate formatter, and renders the final output in a web template.
+
+## Target Output Format: Structured Markdown Logic Summary
+
+Based on extensive discussion, the refactored parser should adhere to the following output specification. The goal is to produce a developer-friendly, rule-driven summary that is verbatim to the blueprint's logic.
+
+1.  **Scope & Structure**:
+    *   Initially, only parse and output the `EventGraph`.
+    *   Output format is a structured Markdown document.
+
+2.  **Execution Flow**:
+    *   **Events**: Start with `#### Event: <EventName> (provides: <output_pin_1>)`.
+    *   **Sequences**: `K2Node_ExecutionSequence` outputs are rendered as an ordered list (`1.`, `2.`, `3.`).
+    *   **Conditionals**: `Branch` nodes must be rendered using `if/else` blocks.
+    *   **Loops**: `ForEachLoop` is a special case, rendered as `for each (<item>, <index>) in <ArraySource>:`, with the loop body indented as an unordered list.
+
+3.  **Data Flow & Operations**:
+    *   **Function Calls**: Must be in the format `TargetObject.Function(param: Value)`. Data sources are inlined directly.
+    *   **Assignments**: Use `VariableName = <Source>`.
+    *   **Casting**: Use `CastedVariable = cast(<Source>)`.
+    *   **Variable Scopes**: No special handling for temporary variable name conflicts; rely on developer context.
+
+4.  **Ignored & Simplified Elements**:
+    *   **Macros**: All other macros (custom or standard) are simplified to a comment: `// Macro: <MacroName>()`. They are not expanded.
+    *   **Comments**: `EdGraphNode_Comment` objects are completely ignored.
+    *   **Node Position**: Node coordinates do not influence output order; only `exec` pins do.
+    *   **Errors**: Parsing errors are silently ignored to keep the output clean.
+    *   **External References**: No special annotations are added for cross-blueprint calls.
+

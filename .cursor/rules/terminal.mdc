@@ -1,0 +1,31 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Terminal PowerShell  Rules
+
+- 环境 (Environment): 
+	- PowerShell : 7.5.X
+	- PSConsoleReadLine: 2.4.X
+- PowerShell Terminal 执行规范（强制）
+	- 工作目录规则：
+		- 所有命令必须从项目根目录执行
+	- 虚拟环境调用：
+		- 必须使用 .venv\Scripts\python （Windows反斜杠路径）
+		- 严禁使用 ..\\.venv\\Scripts\\python 或混合路径格式
+	- Python脚本执行：
+		- 禁止直接运行子目录下的脚本（相对导入问题）
+		- 或者修改脚本移除相对导入依赖
+		- 使用 ::test_function_name 的形式来精确指定并运行测试
+	- PowerShell命令规范：
+		- 使用 dir 而非 ls -la
+		- 使用 \ 作为路径分隔符
+		- 严禁使用 cd dir && command 混合语法
+		- 当命令运行失败, 原因为显示问题, buffer size等问题时, 重新运行一次
+		- 错误处理 (Error Handling): 如果命令失败，必须首先对照以上规则检查命令本身，而不是立即猜测问题出在代码或配置上。优先修复命令的正确性
+		- 当你运行terminal命令时, 我可能会干预你, 点击"move to background" 打断你看到输出, 这不是我的本意而是因为你卡住了, 所以你再次运行本该运行的命令即可
+		- 如果PowerShell出现了一些显示问题但成功运行代码, 那么从日志中去阅读日志并继续分析.
+	- PowerShell Terminal显示问题:
+		- PowerShell当前存在显示问题, 你可能无法正常直接读取terminal中的日志内容.
+		- 把你需要阅读的日志内容写入文件到 @tests 中, 通过阅读文件的方式来了解当前Terminal运行结果.
