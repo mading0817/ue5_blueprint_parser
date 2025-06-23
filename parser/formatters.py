@@ -15,7 +15,9 @@ from parser.models import (
     ExecutionBlock, EventNode, AssignmentNode, FunctionCallNode,
     BranchNode, LoopNode, LoopType, MultiBranchNode, LatentActionNode,
     ReturnNode, TemporaryVariableDeclaration,
-    BlueprintNode, Blueprint, BlueprintGraph, GraphNode
+    BlueprintNode, Blueprint, BlueprintGraph, GraphNode,
+    # 新的语义节点
+    VariableDeclaration, CallbackBlock
 )
 
 
@@ -99,6 +101,14 @@ class ASTVisitor(ABC):
     
     @abstractmethod
     def visit_temporary_variable_declaration(self, node: TemporaryVariableDeclaration) -> str:
+        pass
+    
+    @abstractmethod
+    def visit_variable_declaration(self, node: VariableDeclaration) -> str:
+        pass
+    
+    @abstractmethod
+    def visit_callback_block(self, node: CallbackBlock) -> str:
         pass
 
 
@@ -386,12 +396,19 @@ class MarkdownFormatter(ASTVisitor):
             else:
                 collection_str = "<unknown collection>"
             
-            # 构建循环变量
+            # 构建循环变量（使用新的声明结构）
             loop_vars = []
-            if node.item_variable_name:
-                loop_vars.append(node.item_variable_name)
-            if node.index_variable_name:
-                loop_vars.append(node.index_variable_name)
+            if node.item_declaration:
+                loop_vars.append(node.item_declaration.variable_name)
+            if node.index_declaration:
+                loop_vars.append(node.index_declaration.variable_name)
+            
+            # 向后兼容：如果没有声明但有旧的变量名，使用旧的变量名
+            if not loop_vars:
+                if node.item_variable_name:
+                    loop_vars.append(node.item_variable_name)
+                if node.index_variable_name:
+                    loop_vars.append(node.index_variable_name)
             
             if loop_vars:
                 vars_str = ", ".join(loop_vars)
@@ -452,11 +469,23 @@ class MarkdownFormatter(ASTVisitor):
             self._add_line("await <unknown_latent_action>()")
         
         # 处理回调执行流
-        for callback_name, callback_body in node.callback_exec_pins.items():
-            if callback_body and callback_body.statements:
-                self._add_line(f"// {callback_name}:")
+        for callback_name, callback_block in node.callback_exec_pins.items():
+            if callback_block and callback_block.statements:
+                # 显示回调参数（如果有的话）
+                if hasattr(callback_block, 'declarations') and callback_block.declarations:
+                    param_names = [decl.variable_name for decl in callback_block.declarations]
+                    param_str = f"({', '.join(param_names)})"
+                    self._add_line(f"// {callback_name}{param_str}:")
+                else:
+                    self._add_line(f"// {callback_name}:")
+                
                 self.current_indent += 1
-                self.visit_execution_block(callback_body)
+                # 使用CallbackBlock的访问方法
+                if hasattr(callback_block, 'accept'):
+                    callback_block.accept(self)
+                else:
+                    # 向后兼容：直接访问statements
+                    self.visit_execution_block(callback_block)
                 self.current_indent -= 1
         
         return ""
@@ -488,6 +517,33 @@ class MarkdownFormatter(ASTVisitor):
                 self._add_line(f"let {node.variable_name} = {value_str}")
         else:
             self._add_line(f"let {node.variable_name} = <unknown>")
+        
+        return ""
+    
+    def visit_variable_declaration(self, node: VariableDeclaration) -> str:
+        """访问变量声明节点"""
+        if self.strategy.should_show_type_info():
+            type_info = f": {node.variable_type}" if node.variable_type != "unknown" else ""
+        else:
+            type_info = ""
+        
+        if node.initial_value:
+            value_str = node.initial_value.accept(self)
+            self._add_line(f"declare {node.variable_name}{type_info} = {value_str}")
+        else:
+            self._add_line(f"declare {node.variable_name}{type_info}")
+        
+        return ""
+    
+    def visit_callback_block(self, node: CallbackBlock) -> str:
+        """访问回调块节点"""
+        # 首先处理变量声明
+        for declaration in node.declarations:
+            declaration.accept(self)
+        
+        # 然后处理语句
+        for statement in node.statements:
+            statement.accept(self)
         
         return ""
 
@@ -686,6 +742,22 @@ class MermaidFormatter(ASTVisitor):
         if node.value_expression:
             self._add_edge(node, node.value_expression, "value")
         return f"TempVarDecl: {node.variable_name}"
+    
+    def visit_variable_declaration(self, node: VariableDeclaration) -> str:
+        if node.initial_value:
+            self._add_edge(node, node.initial_value, "initial_value")
+        return f"VarDecl: {node.variable_name}"
+    
+    def visit_callback_block(self, node: CallbackBlock) -> str:
+        # 处理变量声明连接
+        for i, declaration in enumerate(node.declarations):
+            self._add_edge(node, declaration, f"decl{i}")
+        
+        # 处理语句连接
+        for i, stmt in enumerate(node.statements):
+            self._add_edge(node, stmt, f"stmt{i}")
+        
+        return "CallbackBlock"
 
 
 # ============================================================================

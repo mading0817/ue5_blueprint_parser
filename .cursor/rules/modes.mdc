@@ -133,10 +133,12 @@ Forbidden: Editing, coding, suggestions, planning.
 Strict rules:
 	- Read all conversations and contexts with the user.
 	- Define conversations background.
+		- What is the problem.
+		- why is the problem.
+		- where is the problem.
 	- Identify primary concerns with the user.
 	- MUST Provide background information with:
 		- tech stacks.
-		- [Defination, structures, description] of relevant functions or variables.
-		- Execute/stack/work flow.
-	- What's done? What's not done? What needs to be done?
+		- [Defination, structures, descriptions] of relevant code functions or variables.
+	- What's been done? What's not been done? What needs to be done next?
 	- Generate a complete and structured summary of all user conversations.

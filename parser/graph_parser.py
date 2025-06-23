@@ -224,7 +224,7 @@ def _parse_inline_pin(line: str) -> Optional[GraphPin]:
     示例: CustomProperties Pin (PinId=xxx,PinName="then",Direction="EGPD_Output",PinType.PinCategory="exec",...)
     """
     # 提取PinId
-    pin_id_match = re.search(r'PinId=([A-F0-9]+)', line)
+    pin_id_match = re.search(r'PinId=([A-F0-9-]+)', line)
     if not pin_id_match:
         return None
     pin_id = pin_id_match.group(1)
@@ -261,14 +261,23 @@ def _parse_inline_pin(line: str) -> Optional[GraphPin]:
     linked_match = re.search(r'LinkedTo=\(([^)]+)\)', line)
     if linked_match:
         links_str = linked_match.group(1)
-        # 处理简化的连接格式：NodeName PinId
-        # 示例：K2Node_ExecutionSequence_0 79A57B3341CE61A0E136F4B860A2290F
-        link_parts = re.findall(r'(\w+)\s+([A-F0-9]+)', links_str)
-        for node_name, target_pin_id in link_parts:
-            pin.linked_to.append({
-                "node_name": node_name,  # 暂时存储节点名称，稍后需要转换为GUID
-                "pin_id": target_pin_id
-            })
+        
+        # 尝试新格式：K2Node_Event_0 AD580DCB422E368B8945BFBB2B710ECC,K2Node_Other_1 1234567890ABCDEF,
+        link_parts = re.findall(r'(\w+)\s+([A-F0-9-]+)', links_str)
+        if link_parts:
+            for node_name, pin_id in link_parts:
+                pin.linked_to.append({
+                    "node_name": node_name,
+                    "pin_id": pin_id
+                })
+        else:
+            # 回退到旧格式：只有引脚ID
+            guid_parts = re.findall(r'([A-F0-9-]+)', links_str)
+            for target_pin_id in guid_parts:
+                if target_pin_id:  # 确保不是空字符串
+                    pin.linked_to.append({
+                        "pin_id": target_pin_id
+                    })
     
     return pin
 
@@ -302,6 +311,16 @@ def build_graph_connections(nodes: List[GraphNode]) -> Dict[str, GraphNode]:
                     if target_node_name in nodes_by_name:
                         target_node = nodes_by_name[target_node_name]
                         _establish_connection(node, pin, target_node, target_pin_id)
+                
+                # 处理仅有pin_id的连接（通过pin_id查找目标节点）
+                elif "pin_id" in link and "node_guid" not in link and "node_name" not in link:
+                    target_pin_id = link["pin_id"]
+                    # 在所有节点中查找具有此pin_id的节点
+                    for target_node in nodes:
+                        for target_pin in target_node.pins:
+                            if target_pin.pin_id == target_pin_id:
+                                _establish_connection(node, pin, target_node, target_pin_id)
+                                break
     
     return nodes_dict
 

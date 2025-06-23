@@ -216,6 +216,23 @@ class PropertyAccessNode(Expression):
         return visitor.visit_property_access(self)
 
 
+@dataclass
+class VariableDeclaration(Statement):
+    """
+    变量声明节点
+    用于声明局部变量，包括循环变量和回调参数等
+    例如: Item (from ForEach), Index (from ForEach), EventData (from callback)
+    """
+    variable_name: str = ""
+    variable_type: str = "unknown"  # 变量的数据类型
+    initial_value: Optional[Expression] = None  # 初始值表达式（可选）
+    is_loop_variable: bool = False  # 是否是循环变量
+    is_callback_parameter: bool = False  # 是否是回调参数
+    
+    def accept(self, visitor):
+        return visitor.visit_variable_declaration(self)
+
+
 # ============================================================================
 # 语句节点 (Statement Nodes)
 # ============================================================================
@@ -230,6 +247,18 @@ class ExecutionBlock(Statement):
     
     def accept(self, visitor):
         return visitor.visit_execution_block(self)
+
+
+@dataclass
+class CallbackBlock(ExecutionBlock):
+    """
+    回调执行块，扩展ExecutionBlock以包含变量声明
+    用于表示异步操作的回调，包含回调参数的声明
+    """
+    declarations: List[VariableDeclaration] = field(default_factory=list)  # 回调参数声明
+    
+    def accept(self, visitor):
+        return visitor.visit_callback_block(self)
 
 
 @dataclass
@@ -311,12 +340,21 @@ class LoopNode(Statement):
     loop_type: LoopType = LoopType.FOR_EACH
     # ForEach循环特定
     collection_expression: Optional[Expression] = None
-    item_variable_name: Optional[str] = None
-    index_variable_name: Optional[str] = None
+    item_declaration: Optional[VariableDeclaration] = None  # 循环项变量声明
+    index_declaration: Optional[VariableDeclaration] = None  # 索引变量声明（可选）
     # While/For循环特定
     condition_expression: Optional[Expression] = None
     # 循环体
     body: ExecutionBlock = field(default_factory=ExecutionBlock)
+    
+    # 向后兼容的属性（已弃用，但保留以避免破坏现有代码）
+    @property
+    def item_variable_name(self) -> Optional[str]:
+        return self.item_declaration.variable_name if self.item_declaration else None
+    
+    @property
+    def index_variable_name(self) -> Optional[str]:
+        return self.index_declaration.variable_name if self.index_declaration else None
     
     def accept(self, visitor):
         return visitor.visit_loop_node(self)
@@ -344,7 +382,7 @@ class LatentActionNode(Statement):
     用于表示异步操作及其回调执行流
     """
     call: Optional['FunctionCallNode'] = None  # 异步函数调用
-    callback_exec_pins: Dict[str, 'ExecutionBlock'] = field(default_factory=dict)  # 回调执行引脚 {"EventReceived": ExecutionBlock, ...}
+    callback_exec_pins: Dict[str, 'CallbackBlock'] = field(default_factory=dict)  # 回调执行引脚 {"EventReceived": CallbackBlock, ...}
     
     def accept(self, visitor):
         return visitor.visit_latent_action_node(self)

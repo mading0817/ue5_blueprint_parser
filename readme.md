@@ -15,15 +15,14 @@ The system is architected as a three-stage pipeline, inspired by modern compiler
 
 ### 2. Stage Two: Logical AST Generation
 
-*   **Module**: `parser/analyzer.py`
+*   **Module**: `parser/analyzer.py` (with new `parser/symbol_table.py`)
 *   **Input**: The `BlueprintGraph` object from Stage One.
-*   **Output**: A Logical Abstract Syntax Tree (AST).
-*   **Responsibility**: This stage is the heart of the parser, transforming the raw graph into a semantically rich AST. It employs a **multi-pass analysis** approach inspired by modern compilers to ensure accuracy and robustness.
-    *   **Pass 1: Symbol & Dependency Analysis**: The analyzer first traverses the graph to build a `SymbolTable`. This table primarily calculates the usage count for every output pin, which is critical for the "Smart Variable Extraction" logic.
-    *   **Pass 2: Context-Aware AST Generation**: In the second pass, the analyzer generates the AST. It carries an `AnalysisContext` object that holds the `SymbolTable`, a memoization cache, and the current execution scope. This context allows the analyzer to make informed decisions.
-    *   **AST Nodes**: The tree is built from expressive nodes like `EventNode`, `AssignmentNode`, `BranchNode`, and `FunctionCallNode`. Crucially, it also uses specialized nodes like `LatentActionNode` (to model asynchronous operations like `WaitGameplayEvent` and their callbacks) and `PropertyAccessNode` (to represent accessing a property of an object or struct, like `Payload.EventMagnitude`).
-    *   **Smart Variable Extraction**: With the `SymbolTable`, this process is now precise. If a pure function's output pin has a usage count greater than one, an `AssignmentNode` is injected into the correct scope's "prelude," and all subsequent uses are replaced with a `VariableAccessNode`. This prevents logic duplication and maintains readability.
-    *   **Extensible Node Processors**: A registry maps blueprint node types to dedicated processing functions, allowing the system to be easily extended to support new kinds of blueprint nodes.
+*   **Output**: A **Semantically-Rich Logical Abstract Syntax Tree (AST)**.
+*   **Responsibility**: This stage is the heart of the parser, transforming the raw graph into a semantically complete AST. It abandons fragile, stateful tracking in favor of producing a self-descriptive AST, inspired by modern compiler theory.
+    *   **AST-Driven Semantics**: Instead of relying on the analyzer to "remember" the context of a loop or an async callback, the AST nodes themselves are enhanced to declare their own context. For example, a `LoopNode` now contains `VariableDeclaration` objects for its `item` and `index`, and a `LatentActionNode` explicitly lists the variables provided by its callbacks. This makes the AST a standalone, unambiguous representation of the blueprint's logic.
+    *   **Formal Symbol Table**: A dedicated `SymbolTable` class manages scopes. As the analyzer traverses the graph, it pushes and pops scopes on the symbol table (e.g., upon entering/leaving a loop body). When resolving a variable, it queries the symbol table directly, which correctly handles scope-based visibility and shadowing.
+    *   **Decoupled Data Flow Resolution**: The logic for resolving data (`_resolve_data_expression`) is simplified. Its primary responsibility is to query the `SymbolTable` for variables or to trace connections for direct function call results. This has successfully eliminated the `UnknownFunction` errors caused by the old model's inability to distinguish between a value-providing node and a context-providing node, and now correctly handles complex data structures and intermediate connection nodes like `K2Node_Knot`.
+    *   **Extensible Node Processors**: A registry maps blueprint node types to dedicated processing functions. This remains a key feature, allowing the system to be easily extended to support new kinds of blueprint nodes, including those that create new lexical scopes. Recently added support for `K2Node_CustomEvent`, `K2Node_DynamicCast`, `K2Node_AssignDelegate`, and `K2Node_CallArrayFunction` nodes.
 
 ### 3. Stage Three: AST Formatting
 
