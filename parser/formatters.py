@@ -1,433 +1,716 @@
-from parser.models import BlueprintNode, Blueprint, BlueprintGraph, GraphNode
-from parser.graph_builder import GraphTraverser
-from typing import List
+"""
+格式化器模块：使用访问者模式将AST转换为不同的输出格式
+
+该模块实现了新的三阶段解析架构中的第三阶段：AST格式化
+支持多种输出格式和格式化策略
+"""
+
+from abc import ABC, abstractmethod
+from typing import Dict, List, Optional, Any
+from parser.models import (
+    ASTNode, Expression, Statement,
+    LiteralExpression, VariableGetExpression, FunctionCallExpression,
+    CastExpression, MemberAccessExpression, TemporaryVariableExpression,
+    ExecutionBlock, EventNode, AssignmentNode, FunctionCallNode,
+    BranchNode, LoopNode, LoopType, MultiBranchNode, LatentActionNode,
+    ReturnNode, TemporaryVariableDeclaration,
+    BlueprintNode, Blueprint, BlueprintGraph, GraphNode
+)
 
 
-def _to_markdown_tree_recursive(node: BlueprintNode, indent_level: int = 0) -> str:
+# ============================================================================
+# 访问者模式基类
+# ============================================================================
+
+class ASTVisitor(ABC):
     """
-    将单个BlueprintNode及其子节点递归地转换为Markdown格式的无序列表字符串。
-
-    :param node: 要格式化的根节点。
-    :param indent_level: 当前的缩进级别。
-    :return: Markdown格式的层级字符串。
+    AST访问者模式的抽象基类
+    所有格式化器都应该继承此类并实现相应的visit方法
     """
-    # 移除 'FString' 等可能的前缀
-    class_type_simple = node.class_type.split('.')[-1]
+    
+    @abstractmethod
+    def visit_literal_expression(self, node: LiteralExpression) -> str:
+        pass
+    
+    @abstractmethod
+    def visit_variable_get_expression(self, node: VariableGetExpression) -> str:
+        pass
+    
+    @abstractmethod
+    def visit_function_call_expression(self, node: FunctionCallExpression) -> str:
+        pass
+    
+    @abstractmethod
+    def visit_cast_expression(self, node: CastExpression) -> str:
+        pass
+    
+    @abstractmethod
+    def visit_member_access_expression(self, node: MemberAccessExpression) -> str:
+        pass
+    
+    @abstractmethod
+    def visit_temporary_variable_expression(self, node: TemporaryVariableExpression) -> str:
+        pass
+    
+    @abstractmethod
+    def visit_execution_block(self, node: ExecutionBlock) -> str:
+        pass
+    
+    @abstractmethod
+    def visit_event_node(self, node: EventNode) -> str:
+        pass
+    
+    @abstractmethod
+    def visit_assignment_node(self, node: AssignmentNode) -> str:
+        pass
+    
+    @abstractmethod
+    def visit_function_call_node(self, node: FunctionCallNode) -> str:
+        pass
+    
+    @abstractmethod
+    def visit_branch_node(self, node: BranchNode) -> str:
+        pass
+    
+    @abstractmethod
+    def visit_loop_node(self, node: LoopNode) -> str:
+        pass
+    
+    @abstractmethod
+    def visit_multi_branch_node(self, node: MultiBranchNode) -> str:
+        pass
+    
+    @abstractmethod
+    def visit_latent_action_node(self, node: LatentActionNode) -> str:
+        pass
+    
+    @abstractmethod
+    def visit_return_node(self, node: ReturnNode) -> str:
+        pass
+    
+    @abstractmethod
+    def visit_temporary_variable_declaration(self, node: TemporaryVariableDeclaration) -> str:
+        pass
 
-    # 根据缩进级别生成前缀
-    indent_str = "  " * indent_level
 
-    # 格式化当前节点
-    result_string = f"{indent_str}- **{node.name}** (`{class_type_simple}`)\n"
+# ============================================================================
+# 格式化策略模式
+# ============================================================================
 
-    # 递归格式化所有子节点
-    for child in node.children:
-        result_string += _to_markdown_tree_recursive(child, indent_level + 1)
+class FormattingStrategy(ABC):
+    """格式化策略的抽象基类"""
+    
+    @abstractmethod
+    def should_show_node_comments(self) -> bool:
+        """是否显示节点注释"""
+        pass
+    
+    @abstractmethod
+    def should_show_type_info(self) -> bool:
+        """是否显示类型信息"""
+        pass
+    
+    @abstractmethod
+    def should_inline_simple_expressions(self) -> bool:
+        """是否内联简单表达式"""
+        pass
+    
+    @abstractmethod
+    def get_indent_string(self) -> str:
+        """获取缩进字符串"""
+        pass
 
-    return result_string
 
+class VerboseStrategy(FormattingStrategy):
+    """详细输出策略"""
+    
+    def should_show_node_comments(self) -> bool:
+        return True
+    
+    def should_show_type_info(self) -> bool:
+        return True
+    
+    def should_inline_simple_expressions(self) -> bool:
+        return False
+    
+    def get_indent_string(self) -> str:
+        return "    "  # 4个空格
+
+
+class ConciseStrategy(FormattingStrategy):
+    """简洁输出策略"""
+    
+    def should_show_node_comments(self) -> bool:
+        return False
+    
+    def should_show_type_info(self) -> bool:
+        return False
+    
+    def should_inline_simple_expressions(self) -> bool:
+        return True
+    
+    def get_indent_string(self) -> str:
+        return "  "  # 2个空格
+
+
+# ============================================================================
+# Markdown格式化器
+# ============================================================================
+
+class MarkdownFormatter(ASTVisitor):
+    """
+    将AST转换为Markdown格式伪代码的格式化器
+    使用访问者模式遍历AST并生成结构化的伪代码输出
+    """
+    
+    def __init__(self, strategy: FormattingStrategy = None):
+        self.strategy = strategy or ConciseStrategy()
+        self.current_indent = 0
+        self.output_lines = []
+    
+    def format_ast(self, ast_node: ASTNode) -> str:
+        """
+        格式化AST节点为Markdown字符串
+        
+        :param ast_node: 要格式化的AST根节点
+        :return: 格式化后的Markdown字符串
+        """
+        self.current_indent = 0
+        self.output_lines = []
+        
+        # 访问AST节点
+        result = ast_node.accept(self)
+        
+        if self.output_lines:
+            return '\n'.join(self.output_lines)
+        else:
+            return result or ""
+    
+    def _add_line(self, content: str, extra_indent: int = 0):
+        """添加一行内容到输出"""
+        indent = self.strategy.get_indent_string() * (self.current_indent + extra_indent)
+        self.output_lines.append(f"{indent}{content}")
+    
+    def _get_indent(self, extra_indent: int = 0) -> str:
+        """获取当前缩进字符串"""
+        return self.strategy.get_indent_string() * (self.current_indent + extra_indent)
+    
+    # ========================================================================
+    # 表达式节点访问方法
+    # ========================================================================
+    
+    def visit_literal_expression(self, node: LiteralExpression) -> str:
+        """访问字面量表达式"""
+        if node.literal_type == "string":
+            return f'"{node.value}"'
+        elif node.literal_type == "bool":
+            return str(node.value).lower()
+        else:
+            return str(node.value)
+    
+    def visit_variable_get_expression(self, node: VariableGetExpression) -> str:
+        """访问变量获取表达式"""
+        return node.variable_name
+    
+    def visit_function_call_expression(self, node: FunctionCallExpression) -> str:
+        """访问函数调用表达式"""
+        # 构建参数列表
+        args = []
+        for param_name, arg_expr in node.arguments:
+            if arg_expr:
+                arg_value = arg_expr.accept(self)
+                if param_name and param_name.lower() != "value":
+                    args.append(f"{param_name}: {arg_value}")
+                else:
+                    args.append(arg_value)
+        
+        args_str = ", ".join(args)
+        
+        # 构建函数调用
+        if node.target:
+            target_str = node.target.accept(self)
+            return f"{target_str}.{node.function_name}({args_str})"
+        else:
+            return f"{node.function_name}({args_str})"
+    
+    def visit_cast_expression(self, node: CastExpression) -> str:
+        """访问类型转换表达式"""
+        if node.source_expression:
+            source_str = node.source_expression.accept(self)
+            return f"cast({source_str} as {node.target_type})"
+        else:
+            return f"cast(<unknown> as {node.target_type})"
+    
+    def visit_member_access_expression(self, node: MemberAccessExpression) -> str:
+        """访问成员访问表达式"""
+        if node.object_expression:
+            obj_str = node.object_expression.accept(self)
+            return f"{obj_str}.{node.member_name}"
+        else:
+            return node.member_name
+    
+    def visit_temporary_variable_expression(self, node: TemporaryVariableExpression) -> str:
+        """访问临时变量表达式"""
+        return node.temp_var_name
+    
+    # ========================================================================
+    # 语句节点访问方法
+    # ========================================================================
+    
+    def visit_execution_block(self, node: ExecutionBlock) -> str:
+        """访问执行块"""
+        for statement in node.statements:
+            statement.accept(self)
+        return ""
+    
+    def visit_event_node(self, node: EventNode) -> str:
+        """访问事件节点"""
+        # 构建参数列表
+        params_str = ""
+        if node.parameters:
+            param_parts = []
+            for param_name, param_type in node.parameters:
+                if self.strategy.should_show_type_info():
+                    param_parts.append(f"{param_name}: {param_type}")
+                else:
+                    param_parts.append(param_name)
+            params_str = f"({', '.join(param_parts)})"
+        
+        # 添加事件声明
+        self._add_line(f"#### Event: {node.event_name}{params_str}")
+        self._add_line("")
+        
+        # 处理事件体
+        if node.body and node.body.statements:
+            self.current_indent += 1
+            self.visit_execution_block(node.body)
+            self.current_indent -= 1
+        
+        return ""
+    
+    def visit_assignment_node(self, node: AssignmentNode) -> str:
+        """访问赋值节点"""
+        if node.value_expression:
+            value_str = node.value_expression.accept(self)
+            if node.is_local_variable:
+                self._add_line(f"let {node.variable_name} = {value_str}")
+            else:
+                self._add_line(f"{node.variable_name} = {value_str}")
+        else:
+            self._add_line(f"{node.variable_name} = <unknown>")
+        
+        return ""
+    
+    def visit_function_call_node(self, node: FunctionCallNode) -> str:
+        """访问函数调用节点"""
+        # 构建参数列表
+        args = []
+        for param_name, arg_expr in node.arguments:
+            if arg_expr:
+                arg_value = arg_expr.accept(self)
+                if param_name and param_name.lower() != "value":
+                    args.append(f"{param_name}: {arg_value}")
+                else:
+                    args.append(arg_value)
+        
+        args_str = ", ".join(args)
+        
+        # 构建函数调用
+        if node.target:
+            target_str = node.target.accept(self)
+            call_str = f"{target_str}.{node.function_name}({args_str})"
+        else:
+            call_str = f"{node.function_name}({args_str})"
+        
+        # 处理返回值赋值
+        if node.return_assignments:
+            for var_name, output_pin in node.return_assignments:
+                self._add_line(f"{var_name} = {call_str}")
+        else:
+            self._add_line(call_str)
+        
+        return ""
+    
+    def visit_branch_node(self, node: BranchNode) -> str:
+        """访问分支节点"""
+        if node.condition:
+            condition_str = node.condition.accept(self)
+            self._add_line(f"if ({condition_str}):")
+        else:
+            self._add_line("if (<unknown condition>):")
+        
+        # 处理true分支
+        if node.true_branch and node.true_branch.statements:
+            self.current_indent += 1
+            self.visit_execution_block(node.true_branch)
+            self.current_indent -= 1
+        else:
+            self._add_line("// 空分支", 1)
+        
+        # 处理false分支
+        if node.false_branch and node.false_branch.statements:
+            self._add_line("else:")
+            self.current_indent += 1
+            self.visit_execution_block(node.false_branch)
+            self.current_indent -= 1
+        
+        return ""
+    
+    def visit_loop_node(self, node: LoopNode) -> str:
+        """访问循环节点"""
+        if node.loop_type == LoopType.FOR_EACH:
+            if node.collection_expression:
+                collection_str = node.collection_expression.accept(self)
+            else:
+                collection_str = "<unknown collection>"
+            
+            # 构建循环变量
+            loop_vars = []
+            if node.item_variable_name:
+                loop_vars.append(node.item_variable_name)
+            if node.index_variable_name:
+                loop_vars.append(node.index_variable_name)
+            
+            if loop_vars:
+                vars_str = ", ".join(loop_vars)
+            else:
+                vars_str = "item, index"
+            
+            self._add_line(f"for each ({vars_str}) in {collection_str}:")
+        
+        elif node.loop_type == LoopType.WHILE:
+            if node.condition_expression:
+                condition_str = node.condition_expression.accept(self)
+                self._add_line(f"while ({condition_str}):")
+            else:
+                self._add_line("while (<unknown condition>):")
+        
+        # 处理循环体
+        if node.body and node.body.statements:
+            self.current_indent += 1
+            self.visit_execution_block(node.body)
+            self.current_indent -= 1
+        else:
+            self._add_line("// 空循环体", 1)
+        
+        return ""
+    
+    def visit_multi_branch_node(self, node: MultiBranchNode) -> str:
+        """访问多分支节点"""
+        if node.switch_expression:
+            switch_str = node.switch_expression.accept(self)
+            self._add_line(f"switch ({switch_str}):")
+        else:
+            self._add_line("switch (<unknown>):")
+        
+        # 处理各个分支
+        for case_value, case_body in node.branches:
+            self._add_line(f"case {case_value}:", 1)
+            if case_body and case_body.statements:
+                self.current_indent += 2
+                self.visit_execution_block(case_body)
+                self.current_indent -= 2
+        
+        # 处理默认分支
+        if node.default_branch and node.default_branch.statements:
+            self._add_line("default:", 1)
+            self.current_indent += 2
+            self.visit_execution_block(node.default_branch)
+            self.current_indent -= 2
+        
+        return ""
+    
+    def visit_latent_action_node(self, node: LatentActionNode) -> str:
+        """访问延迟动作节点"""
+        # 构建参数列表
+        args = []
+        for param_name, arg_expr in node.arguments:
+            if arg_expr:
+                arg_value = arg_expr.accept(self)
+                if param_name and param_name.lower() != "value":
+                    args.append(f"{param_name}: {arg_value}")
+                else:
+                    args.append(arg_value)
+        
+        args_str = ", ".join(args)
+        self._add_line(f"await {node.action_name}({args_str})")
+        
+        # 处理输出数据
+        for var_name, output_pin in node.output_data:
+            self._add_line(f"// {var_name} = {node.action_name}.{output_pin}")
+        
+        # 处理完成后的执行流
+        if node.on_completed and node.on_completed.statements:
+            self._add_line("// 完成后执行:")
+            self.current_indent += 1
+            self.visit_execution_block(node.on_completed)
+            self.current_indent -= 1
+        
+        # 处理其他输出流
+        for flow_name, flow_body in node.output_flows.items():
+            if flow_body and flow_body.statements:
+                self._add_line(f"// {flow_name}:")
+                self.current_indent += 1
+                self.visit_execution_block(flow_body)
+                self.current_indent -= 1
+        
+        return ""
+    
+    def visit_return_node(self, node: ReturnNode) -> str:
+        """访问返回节点"""
+        if node.return_values:
+            return_parts = []
+            for output_name, value_expr in node.return_values:
+                if value_expr:
+                    value_str = value_expr.accept(self)
+                    return_parts.append(f"{output_name}: {value_str}")
+                else:
+                    return_parts.append(f"{output_name}: <unknown>")
+            
+            self._add_line(f"return ({', '.join(return_parts)})")
+        else:
+            self._add_line("return")
+        
+        return ""
+    
+    def visit_temporary_variable_declaration(self, node: TemporaryVariableDeclaration) -> str:
+        """访问临时变量声明"""
+        if node.value_expression:
+            value_str = node.value_expression.accept(self)
+            if self.strategy.should_show_type_info() and node.variable_type:
+                self._add_line(f"let {node.variable_name}: {node.variable_type} = {value_str}")
+            else:
+                self._add_line(f"let {node.variable_name} = {value_str}")
+        else:
+            self._add_line(f"let {node.variable_name} = <unknown>")
+        
+        return ""
+
+
+# ============================================================================
+# Mermaid图格式化器（用于调试和可视化）
+# ============================================================================
+
+class MermaidFormatter(ASTVisitor):
+    """
+    将AST转换为Mermaid图定义的格式化器
+    用于调试和验证AST结构的正确性
+    """
+    
+    def __init__(self):
+        self.node_counter = 0
+        self.nodes = []
+        self.edges = []
+        self.node_map = {}  # AST节点 -> Mermaid节点ID
+    
+    def format_ast(self, ast_node: ASTNode) -> str:
+        """
+        格式化AST为Mermaid图定义
+        
+        :param ast_node: 要格式化的AST根节点
+        :return: Mermaid图定义字符串
+        """
+        self.node_counter = 0
+        self.nodes = []
+        self.edges = []
+        self.node_map = {}
+        
+        # 访问AST生成图定义
+        root_id = self._visit_node(ast_node)
+        
+        # 构建Mermaid图定义
+        lines = ["graph TD"]
+        
+        # 添加节点定义
+        for node_def in self.nodes:
+            lines.append(f"    {node_def}")
+        
+        # 添加边定义
+        for edge_def in self.edges:
+            lines.append(f"    {edge_def}")
+        
+        return '\n'.join(lines)
+    
+    def _visit_node(self, node: ASTNode) -> str:
+        """访问节点并返回其Mermaid ID"""
+        node_key = id(node)  # 使用对象ID作为键
+        if node_key in self.node_map:
+            return self.node_map[node_key]
+        
+        node_id = f"N{self.node_counter}"
+        self.node_counter += 1
+        self.node_map[node_key] = node_id
+        
+        # 让节点接受访问并获取标签
+        label = node.accept(self)
+        self.nodes.append(f'{node_id}["{label}"]')
+        
+        return node_id
+    
+    def _add_edge(self, from_node: ASTNode, to_node: ASTNode, label: str = ""):
+        """添加边连接"""
+        from_id = self._visit_node(from_node)
+        to_id = self._visit_node(to_node)
+        
+        if label:
+            self.edges.append(f"{from_id} -->|{label}| {to_id}")
+        else:
+            self.edges.append(f"{from_id} --> {to_id}")
+    
+    # ========================================================================
+    # 实现访问方法（返回节点标签）
+    # ========================================================================
+    
+    def visit_literal_expression(self, node: LiteralExpression) -> str:
+        return f"Literal: {node.value}"
+    
+    def visit_variable_get_expression(self, node: VariableGetExpression) -> str:
+        return f"Get: {node.variable_name}"
+    
+    def visit_function_call_expression(self, node: FunctionCallExpression) -> str:
+        # 处理参数连接
+        for param_name, arg_expr in node.arguments:
+            if arg_expr:
+                self._add_edge(node, arg_expr, param_name)
+        
+        # 处理目标连接
+        if node.target:
+            self._add_edge(node, node.target, "target")
+        
+        return f"Call: {node.function_name}"
+    
+    def visit_cast_expression(self, node: CastExpression) -> str:
+        if node.source_expression:
+            self._add_edge(node, node.source_expression, "source")
+        return f"Cast: {node.target_type}"
+    
+    def visit_member_access_expression(self, node: MemberAccessExpression) -> str:
+        if node.object_expression:
+            self._add_edge(node, node.object_expression, "object")
+        return f"Member: {node.member_name}"
+    
+    def visit_temporary_variable_expression(self, node: TemporaryVariableExpression) -> str:
+        return f"TempVar: {node.temp_var_name}"
+    
+    def visit_execution_block(self, node: ExecutionBlock) -> str:
+        for i, stmt in enumerate(node.statements):
+            self._add_edge(node, stmt, f"stmt{i}")
+        return "ExecutionBlock"
+    
+    def visit_event_node(self, node: EventNode) -> str:
+        if node.body:
+            self._add_edge(node, node.body, "body")
+        return f"Event: {node.event_name}"
+    
+    def visit_assignment_node(self, node: AssignmentNode) -> str:
+        if node.value_expression:
+            self._add_edge(node, node.value_expression, "value")
+        return f"Assign: {node.variable_name}"
+    
+    def visit_function_call_node(self, node: FunctionCallNode) -> str:
+        # 处理参数连接
+        for param_name, arg_expr in node.arguments:
+            if arg_expr:
+                self._add_edge(node, arg_expr, param_name)
+        
+        # 处理目标连接
+        if node.target:
+            self._add_edge(node, node.target, "target")
+        
+        return f"CallStmt: {node.function_name}"
+    
+    def visit_branch_node(self, node: BranchNode) -> str:
+        if node.condition:
+            self._add_edge(node, node.condition, "condition")
+        if node.true_branch:
+            self._add_edge(node, node.true_branch, "then")
+        if node.false_branch:
+            self._add_edge(node, node.false_branch, "else")
+        return "Branch"
+    
+    def visit_loop_node(self, node: LoopNode) -> str:
+        if node.collection_expression:
+            self._add_edge(node, node.collection_expression, "collection")
+        if node.condition_expression:
+            self._add_edge(node, node.condition_expression, "condition")
+        if node.body:
+            self._add_edge(node, node.body, "body")
+        return f"Loop: {node.loop_type.value}"
+    
+    def visit_multi_branch_node(self, node: MultiBranchNode) -> str:
+        if node.switch_expression:
+            self._add_edge(node, node.switch_expression, "switch")
+        
+        for i, (case_value, case_body) in enumerate(node.branches):
+            if case_body:
+                self._add_edge(node, case_body, f"case_{case_value}")
+        
+        if node.default_branch:
+            self._add_edge(node, node.default_branch, "default")
+        
+        return "MultiBranch"
+    
+    def visit_latent_action_node(self, node: LatentActionNode) -> str:
+        # 处理参数连接
+        for param_name, arg_expr in node.arguments:
+            if arg_expr:
+                self._add_edge(node, arg_expr, param_name)
+        
+        # 处理执行流连接
+        if node.on_completed:
+            self._add_edge(node, node.on_completed, "completed")
+        
+        for flow_name, flow_body in node.output_flows.items():
+            if flow_body:
+                self._add_edge(node, flow_body, flow_name)
+        
+        return f"LatentAction: {node.action_name}"
+    
+    def visit_return_node(self, node: ReturnNode) -> str:
+        for output_name, value_expr in node.return_values:
+            if value_expr:
+                self._add_edge(node, value_expr, output_name)
+        return "Return"
+    
+    def visit_temporary_variable_declaration(self, node: TemporaryVariableDeclaration) -> str:
+        if node.value_expression:
+            self._add_edge(node, node.value_expression, "value")
+        return f"TempVarDecl: {node.variable_name}"
+
+
+# ============================================================================
+# 向后兼容的遗留格式化函数
+# ============================================================================
 
 def format_blueprint_to_markdown(blueprint: Blueprint) -> str:
     """
-    将一个BlueprintNode的列表格式化为完整的Markdown层级树。
-
-    :param blueprint: 根节点的列表。
-    :return: 完整的Markdown格式字符串。
+    向后兼容的蓝图格式化函数
+    将一个BlueprintNode的列表格式化为完整的Markdown层级树
     """
     if not blueprint or not blueprint.root_nodes:
         return "没有找到可显示的节点。(No displayable nodes found.)"
-
+    
+    def _to_markdown_tree_recursive(node: BlueprintNode, indent_level: int = 0) -> str:
+        # 移除 'FString' 等可能的前缀
+        class_type_simple = node.class_type.split('.')[-1]
+        
+        # 根据缩进级别生成前缀
+        indent_str = "  " * indent_level
+        
+        # 格式化当前节点
+        result_string = f"{indent_str}- **{node.name}** (`{class_type_simple}`)\n"
+        
+        # 递归格式化所有子节点
+        for child in node.children:
+            result_string += _to_markdown_tree_recursive(child, indent_level + 1)
+        
+        return result_string
+    
     final_output = f"#### {blueprint.name} Blueprint Hierarchy\n\n"
     for root in blueprint.root_nodes:
         final_output += _to_markdown_tree_recursive(root)
-
+    
     return final_output
 
 
-def format_graph_to_pseudocode(graph: BlueprintGraph) -> str:
-    """
-    将BlueprintGraph转换为伪代码格式
-    
-    :param graph: 要格式化的蓝图图
-    :return: 伪代码字符串
-    """
-    if not graph or not graph.entry_nodes:
-        return "// 没有找到可执行的Graph节点 (No executable graph nodes found)"
-    
-    # 创建图遍历器
-    traverser = GraphTraverser(graph)
-    
-    # 获取执行序列
-    execution_sequence = traverser.get_execution_sequence()
-    
-    if not execution_sequence:
-        return "// 无法确定执行序列 (Unable to determine execution sequence)"
-    
-    # 生成伪代码
-    pseudocode_lines = []
-    pseudocode_lines.append(f"// === {graph.graph_name} 伪代码 ===")
-    pseudocode_lines.append("")
-    
-    indent_level = 0
-    
-    for i, node in enumerate(execution_sequence):
-        # 生成当前节点的伪代码
-        node_pseudocode = _generate_node_pseudocode(node, traverser, indent_level)
-        
-        if node_pseudocode:
-            # 处理缩进
-            for line in node_pseudocode.split('\n'):
-                if line.strip():
-                    pseudocode_lines.append("    " * indent_level + line.strip())
-                else:
-                    pseudocode_lines.append("")
-            
-            # 根据节点类型调整缩进级别
-            indent_level = _adjust_indent_level(node, indent_level)
-    
-    return '\n'.join(pseudocode_lines)
-
-
-def _generate_node_pseudocode(node: GraphNode, traverser: GraphTraverser, current_indent: int) -> str:
-    """
-    为单个节点生成伪代码
-    """
-    node_type = node.class_type
-    node_name = node.node_name
-    
-    # 事件节点
-    if "K2Node_Event" in node_type:
-        # 从EventReference中提取事件名称
-        event_ref = node.properties.get("EventReference", "")
-        if "MemberName=" in event_ref:
-            # 提取MemberName的值
-            import re
-            match = re.search(r'MemberName="([^"]+)"', event_ref)
-            if match:
-                event_name = match.group(1)
-            else:
-                # 尝试提取不带引号的MemberName
-                match = re.search(r'MemberName=([^,)]+)', event_ref)
-                event_name = match.group(1) if match else node_name
-        else:
-            event_name = node.properties.get("EventReference.MemberName", node_name)
-        
-        return f"event {event_name}:"
-    
-    # 执行序列节点
-    elif "K2Node_ExecutionSequence" in node_type:
-        return f"// --- 执行序列: {node_name} ---"
-    
-    # 函数调用节点
-    elif "K2Node_CallFunction" in node_type:
-        # 从FunctionReference中提取函数名称
-        func_ref = node.properties.get("FunctionReference", "")
-        func_name = "UnknownFunction"
-        
-        if "MemberName=" in func_ref:
-            # 提取MemberName的值
-            import re
-            match = re.search(r'MemberName="([^"]+)"', func_ref)
-            if match:
-                func_name = match.group(1)
-            else:
-                # 尝试提取不带引号的MemberName
-                match = re.search(r'MemberName=([^,)]+)', func_ref)
-                func_name = match.group(1) if match else "UnknownFunction"
-        
-        # 获取函数调用的目标对象
-        target_obj = traverser.resolve_data_flow(node, "self") or "self"
-        # 若 target_obj 为 cast(expr as Class) 则取 Class 作为调用者
-        import re
-        m=re.search(r"cast\([^)]* as ([A-Za-z0-9_]+)\)", str(target_obj))
-        if m:
-            target_obj = m.group(1)
-        
-        # 获取函数参数
-        params = _extract_function_parameters(node, traverser)
-        param_str = ", ".join(params) if params else ""
-        
-        return f"{target_obj}.{func_name}({param_str})"
-    
-    # 变量设置节点
-    elif "K2Node_VariableSet" in node_type:
-        # 从VariableReference中提取变量名称
-        var_ref = node.properties.get("VariableReference", "")
-        var_name = "UnknownVariable"
-        
-        if "MemberName=" in var_ref:
-            import re
-            match = re.search(r'MemberName="([^"]+)"', var_ref)
-            if match:
-                var_name = match.group(1)
-        
-        value_source = traverser.resolve_data_flow(node, var_name) or traverser.resolve_data_flow(node, "Value") or "<Value>"
-        if value_source:
-            return f"{var_name} = {value_source}"
-        else:
-            return f"{var_name} = <未知值>"
-    
-    # 变量获取节点（通常不需要单独的伪代码行）
-    elif "K2Node_VariableGet" in node_type:
-        return ""  # 变量获取通常作为其他节点的参数
-    
-    # 动态转换节点
-    elif "K2Node_DynamicCast" in node_type:
-        target_class_full = node.properties.get("TargetType", "UnknownType")
-        import re
-        cls_all = re.findall(r"\.([A-Za-z0-9_]+)'", str(target_class_full))
-        cls_name = cls_all[-1] if cls_all else str(target_class_full).split('.')[-1].split("'")[0]
-        source_obj = traverser.resolve_data_flow(node, "Object")
-        return f"cast({source_obj} as {cls_name})"
-    
-    # 宏实例节点（如ForEachLoop）
-    elif "K2Node_MacroInstance" in node_type:
-        macro_ref = node.properties.get("MacroGraphReference", "")
-        import re
-        macro_name_match = re.search(r":([A-Za-z0-9_]+)\'", macro_ref)
-        macro_name = macro_name_match.group(1) if macro_name_match else "UnknownMacro"
-
-        # ForEachLoop 特殊处理
-        if "ForEachLoop" in macro_name:
-            array_source = traverser.resolve_data_flow(node, "Array") or "ArraySource"
-            # 同时保留宏注释满足测试用例对 "// Macro:" 的检查
-            comment_line = f"// Macro: {macro_name}()"
-            loop_line = f"for each (item, index) in {array_source}:"
-            return f"{comment_line}\n{loop_line}"
-        # 其他宏仅做注释
-        return f"// Macro: {macro_name}()"
-    
-    # 注释节点
-    elif "EdGraphNode_Comment" in node_type:
-        comment_text = node.properties.get("NodeComment", "")
-        if comment_text:
-            return f"// {comment_text}"
-        return ""
-    
-    # Knot节点（重路由节点）- 通常不需要生成代码
-    elif "K2Node_Knot" in node_type:
-        return ""
-    
-    # 默认情况
-    else:
-        return f"// 节点: {node_name} (类型: {node_type.split('.')[-1]})"
-
-
-def _extract_function_parameters(node: GraphNode, traverser: GraphTraverser) -> List[str]:
-    """
-    提取函数调用节点的参数
-    """
-    params = []
-    
-    # 遍历输入引脚，找到参数
-    for pin in node.pins:
-        if (pin.direction == "input" and 
-            pin.pin_type != "exec" and 
-            pin.pin_name not in ["self", "Target"]):
-            
-            param_value = traverser.resolve_data_flow(node, pin.pin_name)
-            if param_value:
-                params.append(f"{pin.pin_name}={param_value}")
-    
-    return params
-
-
-def _adjust_indent_level(node: GraphNode, current_level: int) -> int:
-    """
-    根据节点类型调整缩进级别
-    """
-    node_type = node.class_type
-    
-    # 事件节点和循环节点增加缩进
-    if ("K2Node_Event" in node_type or 
-        ("K2Node_MacroInstance" in node_type and "ForEachLoop" in str(node.properties))):
-        return current_level + 1
-    
-    return current_level
-
-
-class MarkdownGraphFormatter:
-    """结构化 Markdown 图格式化器（简化版）
-
-    该实现覆盖了事件、执行序列、分支、ForEachLoop、函数调用、变量赋值、动态转换、宏标记等核心节点，
-    旨在让测试用例通过（GREEN 阶段前的最小实现）。
-    未来可根据 todo.md 中更严格的规范继续迭代。
-    """
-
-    # -------------------------------- PUBLIC API --------------------------------
-
-    def format(self, graph: 'BlueprintGraph') -> str:  # noqa: F821
-        """将 BlueprintGraph 转换为结构化 Markdown 字符串。"""
-        # 空图或无法解析时
-        if graph is None or not graph.nodes:
-            return "// 空Graph"
-
-        from .graph_builder import GraphTraverser
-        traverser = GraphTraverser(graph)
-        
-        lines: list[str] = []
-        
-        # 处理所有入口节点（可能有多个事件）
-        for entry_node in graph.entry_nodes:
-            # 获取此入口节点的执行序列
-            sequence = traverser.find_execution_path(entry_node)
-            if not sequence:
-                continue
-                
-            list_counter: int | None = None  # None 表示当前不是有序列表上下文
-
-            # 遍历执行序列
-            for idx, node in enumerate(sequence):
-                node_type = node.class_type
-
-                # 事件节点 → 标题
-                if "K2Node_Event" in node_type or "K2Node_CustomEvent" in node_type:
-                    event_name = self._extract_event_name(node)
-                    if "K2Node_CustomEvent" in node_type:
-                        # CustomEvent从属性中获取名称
-                        event_name = node.properties.get("CustomFunctionName", node.node_name).strip('"')
-                    provides_pin = self._find_first_output_pin_name(node)
-                    lines.append(f"#### Event: {event_name} (provides: {provides_pin})")
-                    continue  # 事件节点不参与后续编号
-
-                # ExecutionSequence 节点 → 重置编号
-                if "K2Node_ExecutionSequence" in node_type:
-                    list_counter = 1  # 开启有序列表
-                    continue  # 不单独生成行
-
-                # 生成节点行文本
-                node_line = self._format_node(node, traverser)
-                if not node_line:
-                    continue
-
-                # 前缀处理：有序列表 or 普通行
-                if list_counter is not None:
-                    lines.append(f"{list_counter}. {node_line}")
-                    list_counter += 1
-                else:
-                    lines.append(f"- {node_line}")
-            
-            # 在事件之间添加空行（如果不是最后一个事件）
-            if entry_node != graph.entry_nodes[-1] and sequence:
-                lines.append("")
-
-        return "\n".join(lines) if lines else "// 无执行序列"
-
-    # ------------------------------ INTERNAL HELPERS -----------------------------
-
-    @staticmethod
-    def _extract_event_name(node: 'GraphNode') -> str:  # noqa: F821
-        """从 EventReference 中提取事件名称。"""
-        import re
-        ref = node.properties.get("EventReference", "")
-        match = re.search(r'MemberName="?([^",)]+)', ref)
-        if match:
-            return match.group(1)
-        return node.node_name
-
-    @staticmethod
-    def _find_first_output_pin_name(node: 'GraphNode') -> str:  # noqa: F821
-        """返回第一个输出引脚名称（非 exec）。"""
-        for pin in node.pins:
-            if pin.direction == "output" and pin.pin_type != "exec":
-                return pin.pin_name
-        return "<none>"
-
-    def _format_node(self, node: 'GraphNode', traverser: 'GraphTraverser') -> str:  # noqa: F821
-        """按节点类型生成单行/多行 Markdown 字符串。"""
-        t = node.class_type
-
-        # --- Branch ---
-        if "K2Node_Branch" in t or "IfThenElse" in t:
-            condition = traverser.resolve_data_flow(node, "Condition") or "<Condition>"
-            return f"if ({condition}):\n    ...\nelse:\n    ..."
-
-        # --- ForEachLoop (宏) ---
-        if "K2Node_MacroInstance" in t:
-            macro_ref = node.properties.get("MacroGraphReference", "")
-            import re
-            macro_name_match = re.search(r":([A-Za-z0-9_]+)\'", macro_ref)
-            macro_name = macro_name_match.group(1) if macro_name_match else "UnknownMacro"
-
-            # ForEachLoop 特殊处理
-            if "ForEachLoop" in macro_name:
-                array_source = traverser.resolve_data_flow(node, "Array") or "ArraySource"
-                # 同时保留宏注释满足测试用例对 "// Macro:" 的检查
-                comment_line = f"// Macro: {macro_name}()"
-                loop_line = f"for each (item, index) in {array_source}:"
-                return f"{comment_line}\n{loop_line}"
-            # 其他宏仅做注释
-            return f"// Macro: {macro_name}()"
-
-        # --- 函数调用 ---
-        if "K2Node_CallFunction" in t:
-            func_name = self._extract_member_name(node.properties.get("FunctionReference", ""))
-            target_obj = traverser.resolve_data_flow(node, "self") or "self"
-            # 提取参数
-            params = _extract_function_parameters(node, traverser)
-            param_str = (", ".join(params) if params else "")
-            return f"{target_obj}.{func_name}({param_str})"
-
-        # --- 变量赋值 ---
-        if "K2Node_VariableSet" in t:
-            var_name = self._extract_member_name(node.properties.get("VariableReference", ""))
-            # UE5 VariableSet 节点待赋值的输入 pin 名称通常与变量同名，或为 "Value"
-            value_source = traverser.resolve_data_flow(node, var_name) or traverser.resolve_data_flow(node, "Value") or "<Value>"
-            return f"{var_name} = {value_source}"
-
-        # --- 动态转换 ---
-        if "K2Node_DynamicCast" in t:
-            target_class_full = node.properties.get("TargetType", "UnknownType")
-            import re
-            cls_all = re.findall(r"\.([A-Za-z0-9_]+)'", str(target_class_full))
-            cls_name = cls_all[-1] if cls_all else str(target_class_full).split('.')[-1].split("'")[0]
-            source_obj = traverser.resolve_data_flow(node, "Object")
-            return f"cast({source_obj} as {cls_name})"
-
-        # --- 委托/事件绑定 ---
-        if "K2Node_AssignDelegate" in t:
-            # 获取事件源对象（self引脚）
-            source_obj = traverser.resolve_data_flow(node, "self") or "self"
-            
-            # 获取事件名称（从DelegateReference属性）
-            delegate_ref = node.properties.get("DelegateReference", "")
-            event_name = self._extract_member_name(delegate_ref)
-            
-            # 获取事件处理函数（Delegate引脚连接的CustomEvent）
-            handler = traverser.resolve_data_flow(node, "Delegate") or "Handler"
-            
-            # 格式化为事件绑定语法
-            return f"{source_obj}.{event_name} += {handler}"
-
-        # --- 异步任务（Latent Call）---
-        if "K2Node_LatentAbilityCall" in t:
-            # 从ProxyFactoryFunctionName获取真实函数名
-            func_name = node.properties.get("ProxyFactoryFunctionName", "UnknownAsyncFunction")
-            # 去除可能的引号
-            func_name = func_name.strip('"')
-            
-            # 获取参数（如果有）
-            params = []
-            for pin in node.pins:
-                if pin.direction == "input" and pin.pin_type not in ["exec", "delegate"]:
-                    param_value = traverser.resolve_data_flow(node, pin.pin_name)
-                    if param_value:
-                        params.append(f"{pin.pin_name}={param_value}")
-            
-            param_str = ", ".join(params) if params else "..."
-            
-            # 格式化为异步任务创建
-            return f"AsyncTask = {func_name}({param_str})"
-
-        # 默认：忽略 Knot / VariableGet 等
-        if "K2Node_Knot" in t or "K2Node_VariableGet" in t:
-            return ""
-
-        return f"// Node: {node.node_name}"
-
-    # Utility to extract MemberName from mixed reference strings
-    @staticmethod
-    def _extract_member_name(ref: str) -> str:
-        import re
-        match = re.search(r'MemberName="?([^",)]+)', ref)
-        return match.group(1) if match else "UnknownMember"
+ 

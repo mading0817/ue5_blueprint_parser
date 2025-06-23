@@ -1,5 +1,7 @@
 from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple, Union
+from abc import ABC, abstractmethod
+from enum import Enum
 
 
 @dataclass
@@ -26,6 +28,7 @@ class GraphPin:
     direction: str  # "input" 或 "output"
     pin_type: str   # 引脚的数据类型
     linked_to: List[Dict[str, str]] = field(default_factory=list)  # 连接到的其他引脚信息 [{"node_guid": "", "pin_id": ""}]
+    default_value: Optional[str] = None  # 引脚的默认值
 
 
 @dataclass
@@ -63,3 +66,310 @@ class Blueprint:
     name: str
     root_nodes: List[BlueprintNode]
     graphs: Dict[str, BlueprintGraph] = field(default_factory=dict)  # graph_name -> BlueprintGraph
+
+
+# ============================================================================
+# AST (Abstract Syntax Tree) Node Definitions
+# ============================================================================
+# 这些类定义了逻辑抽象语法树的节点，用于表示蓝图的程序逻辑
+# 而不是原始的图结构
+
+@dataclass
+class SourceLocation:
+    """
+    追踪AST节点的源位置信息
+    用于调试和错误报告
+    """
+    node_guid: Optional[str] = None
+    node_name: Optional[str] = None
+    pin_id: Optional[str] = None
+    file_path: Optional[str] = None
+
+
+@dataclass
+class ASTNode(ABC):
+    """
+    所有AST节点的抽象基类
+    提供通用的功能和访问者模式支持
+    """
+    source_location: Optional[SourceLocation] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    
+    @abstractmethod
+    def accept(self, visitor):
+        """访问者模式的accept方法"""
+        pass
+
+
+@dataclass
+class Expression(ASTNode):
+    """
+    表达式节点的基类
+    表达式产生值但不改变执行流
+    """
+    # 表达式的类型信息（可选，用于未来扩展）
+    expression_type: Optional[str] = None
+
+
+@dataclass
+class Statement(ASTNode):
+    """
+    语句节点的基类
+    语句执行动作并可能改变执行流
+    """
+    pass
+
+
+# ============================================================================
+# 表达式节点 (Expression Nodes)
+# ============================================================================
+
+@dataclass
+class LiteralExpression(Expression):
+    """
+    字面量表达式
+    例如: 42, "hello", true
+    """
+    value: Any = None
+    literal_type: str = "unknown"  # "int", "float", "string", "bool", etc.
+    
+    def accept(self, visitor):
+        return visitor.visit_literal_expression(self)
+
+
+@dataclass
+class VariableGetExpression(Expression):
+    """
+    变量读取表达式
+    例如: PlayerHealth, CurrentWeapon
+    """
+    variable_name: str = ""
+    is_self_variable: bool = True  # 是否是self的成员变量
+    
+    def accept(self, visitor):
+        return visitor.visit_variable_get_expression(self)
+
+
+@dataclass
+class FunctionCallExpression(Expression):
+    """
+    纯函数调用表达式（无exec引脚）
+    例如: GetActorLocation(), Add(X, Y)
+    """
+    target: Optional[Expression] = None  # 调用目标（如果是成员函数）
+    function_name: str = ""
+    arguments: List[Tuple[str, Expression]] = field(default_factory=list)  # [(param_name, value), ...]
+    
+    def accept(self, visitor):
+        return visitor.visit_function_call_expression(self)
+
+
+@dataclass
+class CastExpression(Expression):
+    """
+    类型转换表达式
+    例如: Cast<PlayerCharacter>(Actor)
+    """
+    source_expression: Optional[Expression] = None
+    target_type: str = ""
+    
+    def accept(self, visitor):
+        return visitor.visit_cast_expression(self)
+
+
+@dataclass
+class MemberAccessExpression(Expression):
+    """
+    成员访问表达式
+    例如: Player.Health, Vector.X
+    """
+    object_expression: Optional[Expression] = None
+    member_name: str = ""
+    
+    def accept(self, visitor):
+        return visitor.visit_member_access_expression(self)
+
+
+@dataclass
+class TemporaryVariableExpression(Expression):
+    """
+    临时变量引用表达式
+    用于引用之前提取的临时变量
+    """
+    temp_var_name: str = ""
+    
+    def accept(self, visitor):
+        return visitor.visit_temporary_variable_expression(self)
+
+
+# ============================================================================
+# 语句节点 (Statement Nodes)
+# ============================================================================
+
+@dataclass
+class ExecutionBlock(Statement):
+    """
+    执行块，包含一系列顺序执行的语句
+    用于表示线性执行流
+    """
+    statements: List[Statement] = field(default_factory=list)
+    
+    def accept(self, visitor):
+        return visitor.visit_execution_block(self)
+
+
+@dataclass
+class EventNode(Statement):
+    """
+    事件节点，表示事件处理程序的入口点
+    例如: EventBeginPlay, EventTick
+    """
+    event_name: str = ""
+    parameters: List[Tuple[str, str]] = field(default_factory=list)  # [(param_name, param_type), ...]
+    body: ExecutionBlock = field(default_factory=ExecutionBlock)
+    
+    def accept(self, visitor):
+        return visitor.visit_event_node(self)
+
+
+@dataclass
+class AssignmentNode(Statement):
+    """
+    赋值语句节点
+    例如: Health = 100, Position = GetActorLocation()
+    """
+    variable_name: str = ""
+    value_expression: Optional[Expression] = None
+    is_local_variable: bool = False  # 是否是局部变量声明
+    
+    def accept(self, visitor):
+        return visitor.visit_assignment_node(self)
+
+
+@dataclass
+class FunctionCallNode(Statement):
+    """
+    函数调用语句（有exec引脚）
+    例如: PrintString("Hello"), SetActorLocation(NewPos)
+    """
+    target: Optional[Expression] = None  # 调用目标
+    function_name: str = ""
+    arguments: List[Tuple[str, Expression]] = field(default_factory=list)  # [(param_name, value), ...]
+    # 返回值赋值（如果有）
+    return_assignments: List[Tuple[str, str]] = field(default_factory=list)  # [(var_name, output_pin_name), ...]
+    
+    def accept(self, visitor):
+        return visitor.visit_function_call_node(self)
+
+
+# ============================================================================
+# 控制流节点 (Control Flow Nodes)
+# ============================================================================
+
+@dataclass
+class BranchNode(Statement):
+    """
+    分支节点（if/else）
+    例如: if (Health > 0) { ... } else { ... }
+    """
+    condition: Optional[Expression] = None
+    true_branch: ExecutionBlock = field(default_factory=ExecutionBlock)
+    false_branch: Optional[ExecutionBlock] = None
+    
+    def accept(self, visitor):
+        return visitor.visit_branch_node(self)
+
+
+class LoopType(Enum):
+    """循环类型枚举"""
+    FOR_EACH = "foreach"
+    FOR_EACH_WITH_BREAK = "foreach_with_break"
+    WHILE = "while"
+    FOR = "for"
+
+
+@dataclass
+class LoopNode(Statement):
+    """
+    循环节点
+    支持多种循环类型：ForEach, While, For
+    """
+    loop_type: LoopType = LoopType.FOR_EACH
+    # ForEach循环特定
+    collection_expression: Optional[Expression] = None
+    item_variable_name: Optional[str] = None
+    index_variable_name: Optional[str] = None
+    # While/For循环特定
+    condition_expression: Optional[Expression] = None
+    # 循环体
+    body: ExecutionBlock = field(default_factory=ExecutionBlock)
+    
+    def accept(self, visitor):
+        return visitor.visit_loop_node(self)
+
+
+@dataclass
+class MultiBranchNode(Statement):
+    """
+    多分支节点（switch/select）
+    例如: switch (State) { case Idle: ..., case Running: ... }
+    """
+    switch_expression: Optional[Expression] = None
+    branches: List[Tuple[str, ExecutionBlock]] = field(default_factory=list)  # [(case_value, body), ...]
+    default_branch: Optional[ExecutionBlock] = None
+    
+    def accept(self, visitor):
+        return visitor.visit_multi_branch_node(self)
+
+
+@dataclass
+class LatentActionNode(Statement):
+    """
+    延迟/异步动作节点
+    例如: Delay(2.0), WaitForEvent, AsyncLoadAsset
+    """
+    action_name: str = ""
+    arguments: List[Tuple[str, Expression]] = field(default_factory=list)
+    # 完成后的执行流
+    on_completed: Optional[ExecutionBlock] = None
+    # 其他输出执行流（例如：OnSuccess, OnFail）
+    output_flows: Dict[str, ExecutionBlock] = field(default_factory=dict)
+    # 输出数据
+    output_data: List[Tuple[str, str]] = field(default_factory=list)  # [(var_name, output_pin_name), ...]
+    
+    def accept(self, visitor):
+        return visitor.visit_latent_action_node(self)
+
+
+@dataclass
+class ReturnNode(Statement):
+    """
+    返回语句节点
+    用于函数返回值
+    """
+    return_values: List[Tuple[str, Expression]] = field(default_factory=list)  # [(output_name, value), ...]
+    
+    def accept(self, visitor):
+        return visitor.visit_return_node(self)
+
+
+# ============================================================================
+# 临时变量声明节点
+# ============================================================================
+
+@dataclass
+class TemporaryVariableDeclaration(Statement):
+    """
+    临时变量声明
+    用于智能变量提取：当纯函数输出被多处使用时创建
+    """
+    variable_name: str = ""
+    value_expression: Optional[Expression] = None
+    variable_type: Optional[str] = None
+    
+    def accept(self, visitor):
+        return visitor.visit_temporary_variable_declaration(self)
+
+
+# Type aliases for convenience
+ASTNodeType = Union[Expression, Statement]

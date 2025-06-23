@@ -5,7 +5,7 @@ alwaysApply: false
 ---
 RIPER MODES: STRICT OPERATIONAL PROTOCOL
 Every response must start with [MODE: MODE_NAME]. No exceptions.
-Mode transition between modes is ALLOWED.
+Mode transition between modes is ALLOWED ONLY under the user's explicit mode conversion instruction.
 
 
 [MODE: RESEARCH]

@@ -242,12 +242,19 @@ def _parse_inline_pin(line: str) -> Optional[GraphPin]:
     pin_type_match = re.search(r'PinType\.PinCategory="([^"]+)"', line)
     pin_type = pin_type_match.group(1) if pin_type_match else "unknown"
     
+    # 提取默认值
+    default_value = None
+    default_match = re.search(r'DefaultValue="([^"]*)"', line)
+    if default_match:
+        default_value = default_match.group(1)
+    
     # 创建引脚对象
     pin = GraphPin(
         pin_id=pin_id,
         pin_name=pin_name,
         direction=direction,
-        pin_type=pin_type
+        pin_type=pin_type,
+        default_value=default_value
     )
     
     # 解析连接信息

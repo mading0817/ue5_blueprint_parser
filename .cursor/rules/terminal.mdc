@@ -25,7 +25,6 @@ Terminal PowerShell  Rules
 		- 当命令运行失败, 原因为显示问题, buffer size等问题时, 重新运行一次
 		- 错误处理 (Error Handling): 如果命令失败，必须首先对照以上规则检查命令本身，而不是立即猜测问题出在代码或配置上。优先修复命令的正确性
 		- 当你运行terminal命令时, 我可能会干预你, 点击"move to background" 打断你看到输出, 这不是我的本意而是因为你卡住了, 所以你再次运行本该运行的命令即可
-		- 如果PowerShell出现了一些显示问题但成功运行代码, 那么从日志中去阅读日志并继续分析.
 	- PowerShell Terminal显示问题:
 		- PowerShell当前存在显示问题, 你可能无法正常直接读取terminal中的日志内容.
 		- 把你需要阅读的日志内容写入文件到 @tests 中, 通过阅读文件的方式来了解当前Terminal运行结果.

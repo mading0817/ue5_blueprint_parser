@@ -1,7 +1,7 @@
 from flask import Flask, request, render_template, jsonify
 from parser.blueprint_parser import parse_ue_blueprint
 from parser.graph_parser import parse_blueprint_graph
-from parser.formatters import format_blueprint_to_markdown, format_graph_to_pseudocode, MarkdownGraphFormatter
+from parser.formatters import format_blueprint_to_markdown
 
 # 初始化Flask应用
 app = Flask(__name__)
@@ -47,22 +47,19 @@ def parse_graph():
     """解析蓝图Graph逻辑并生成伪代码"""
     graph_text = request.form.get('graph_text', '')
     graph_name = request.form.get('graph_name', 'EventGraph')
+    use_verbose = request.form.get('verbose', '').lower() == 'true'
     
     if not graph_text.strip():
         return render_template('graph.html', 
                              error="请输入Graph文本内容。")
     
     try:
-        # 解析Graph
-        blueprint_graph = parse_blueprint_graph(graph_text, graph_name)
+        # 使用新的三阶段管道
+        markdown_output = run_new_pipeline(graph_text, graph_name, use_verbose)
         
-        if not blueprint_graph:
+        if not markdown_output or "失败" in markdown_output:
             return render_template('graph.html', 
-                                 error="无法解析Graph文本。请检查输入格式。")
-        
-        # 使用新的Markdown格式化器
-        formatter = MarkdownGraphFormatter()
-        markdown_output = formatter.format(blueprint_graph)
+                                 error=f"解析失败: {markdown_output}")
         
         return render_template('graph.html', 
                              result=markdown_output,
@@ -72,6 +69,46 @@ def parse_graph():
     except Exception as e:
         return render_template('graph.html', 
                              error=f"解析Graph过程中发生错误: {str(e)}")
+
+
+def run_new_pipeline(graph_text: str, graph_name: str = "EventGraph", verbose: bool = False) -> str:
+    """
+    运行新的三阶段管道：graph_parser -> GraphAnalyzer -> MarkdownFormatter
+    
+    :param graph_text: 图文本
+    :param graph_name: 图名称
+    :param verbose: 是否使用详细格式
+    :return: 格式化的Markdown输出
+    """
+    from parser.analyzer import GraphAnalyzer
+    from parser.formatters import MarkdownFormatter, VerboseStrategy, ConciseStrategy
+    
+    # 阶段1: 解析图结构
+    graph = parse_blueprint_graph(graph_text, graph_name)
+    if not graph:
+        return "解析图结构失败：无法识别Graph文本格式"
+    
+    # 阶段2: 分析生成AST
+    analyzer = GraphAnalyzer()
+    ast_nodes = analyzer.analyze(graph)
+    if not ast_nodes:
+        return "生成AST失败：未找到可处理的入口节点"
+    
+    # 阶段3: 格式化输出
+    strategy = VerboseStrategy() if verbose else ConciseStrategy()
+    formatter = MarkdownFormatter(strategy)
+    
+    # 格式化所有AST节点
+    results = []
+    for ast_node in ast_nodes:
+        result = formatter.format_ast(ast_node)
+        if result:
+            results.append(result)
+    
+    if not results:
+        return "格式化输出失败：无法生成Markdown输出"
+    
+    return '\n\n---\n\n'.join(results)
 
 
 @app.route('/graph')
