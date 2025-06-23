@@ -87,6 +87,23 @@ class ResolutionResult:
     expression: Optional['Expression'] = None  # 该pin自身产生的数据值表达式（如果它是数据引脚）
 
 
+@dataclass
+class NodeProcessingResult:
+    """
+    节点处理结果 - 控制流结果对象
+    用于封装节点处理器的所有输出，解决复杂节点的执行流追踪问题
+    
+    这个类是解决 ForEachLoop 等复杂宏节点执行流不完整问题的核心方案。
+    它允许节点处理器同时返回生成的 AST 节点和主执行流应该继续的引脚。
+    """
+    # 主要生成的AST节点 (例如 LoopNode, BranchNode, FunctionCallNode)
+    node: Optional['ASTNode'] = None
+    # 主执行流应从哪个引脚继续 (例如 ForEachLoop 的 "Completed" 引脚)
+    continuation_pin: Optional['GraphPin'] = None
+    # 可选：需要添加到当前作用域的前置语句（例如临时变量声明）
+    prelude_statements: List['Statement'] = field(default_factory=list)
+
+
 # ============================================================================
 # AST (Abstract Syntax Tree) Node Definitions
 # ============================================================================

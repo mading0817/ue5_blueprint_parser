@@ -20,7 +20,8 @@ from .models import (
     # 新的语义节点
     VariableDeclaration, CallbackBlock,
     # 新架构核心数据结构
-    ResolutionResult, EventReferenceExpression, LoopVariableExpression
+    ResolutionResult, EventReferenceExpression, LoopVariableExpression,
+    NodeProcessingResult
 )
 from .symbol_table import SymbolTable, Symbol
 
@@ -41,6 +42,8 @@ class AnalysisContext:
     memoization_cache: Dict[str, Expression] = field(default_factory=dict)  # pin_key -> cached_expression
     visited_nodes: Set[str] = field(default_factory=set)  # 已访问的节点GUID
     pin_ast_map: Dict[str, Expression] = field(default_factory=dict)  # pin_id -> AST表达式映射，用于循环变量等特殊节点
+    # 新增：支持 NodeProcessingResult 的 continuation_pin 处理
+    pending_continuation_pin: Optional['GraphPin'] = None  # 来自复杂节点（如 ForEachLoop）的延续执行引脚
 
 
 # 旧的AnalysisState类已被AnalysisContext替代
@@ -446,8 +449,11 @@ class GraphAnalyzer:
     
     def _process_macro_instance(self, context: AnalysisContext, node: GraphNode) -> Optional[ASTNode]:
         """
-        处理宏实例节点
+        处理宏实例节点 - 适配新架构
         K2Node_MacroInstance -> 根据宏类型返回不同的AST节点
+        
+        !WARNING! 这是一个临时的适配器方法。由于 _process_foreach_macro 现在返回 NodeProcessingResult，
+        而其他处理器仍然返回 ASTNode，我们需要在这里进行适配。
         """
         # 获取宏图引用信息
         macro_ref = node.properties.get("MacroGraphReference", {})
@@ -460,16 +466,21 @@ class GraphAnalyzer:
         
         # 根据宏类型处理
         if "ForEachLoop" in macro_graph or "ForEach" in macro_graph:
-            return self._process_foreach_macro(context, node)
+            # ForEachLoop 返回 NodeProcessingResult，需要特殊处理
+            result = self._process_foreach_macro(context, node)
+            # 将 continuation_pin 存储到上下文中，稍后在 _follow_execution_flow 中处理
+            context.pending_continuation_pin = result.continuation_pin
+            return result.node
         elif "WhileLoop" in macro_graph or "While" in macro_graph:
             return self._process_while_macro(context, node)
         else:
             # 未知宏类型，作为函数调用处理
             return self._process_generic_macro(context, node)
     
-    def _process_foreach_macro(self, context: AnalysisContext, node: GraphNode) -> Optional[LoopNode]:
+    def _process_foreach_macro(self, context: AnalysisContext, node: GraphNode) -> NodeProcessingResult:
         """
-        处理ForEach循环宏
+        处理ForEach循环宏 - 重构版本
+        返回 NodeProcessingResult 以支持完整的执行流追踪
         """
         # 查找数组输入引脚
         array_pin = self._find_pin(node, "Array", "input")
@@ -545,7 +556,13 @@ class GraphAnalyzer:
             if loop_body_pin:
                 self._follow_execution_flow(context, loop_body_pin, loop_node.body.statements)
         
-        return loop_node
+        # 关键修复：查找并返回 Completed 引脚，以便主执行流可以继续
+        completed_pin = self._find_pin(node, "Completed", "output")
+        
+        return NodeProcessingResult(
+            node=loop_node,
+            continuation_pin=completed_pin  # 这是解决执行流不完整问题的关键
+        )
     
     def _process_while_macro(self, context: AnalysisContext, node: GraphNode) -> Optional[LoopNode]:
         """
@@ -1067,7 +1084,8 @@ class GraphAnalyzer:
     
     def _follow_execution_flow(self, context: AnalysisContext, start_pin: GraphPin, statements: List[Statement]):
         """
-        跟随执行流，构建语句序列
+        跟随执行流，构建语句序列 - 增强版本
+        支持 NodeProcessingResult 的 continuation_pin 处理
         """
         current_pin = start_pin
         
@@ -1094,6 +1112,14 @@ class GraphAnalyzer:
             ast_node = self._process_node(context, target_node)
             if isinstance(ast_node, Statement):
                 statements.append(ast_node)
+            
+            # 关键修复：检查是否有 pending_continuation_pin（来自 ForEachLoop 等复杂节点）
+            if context.pending_continuation_pin:
+                # 使用 continuation_pin 作为下一个执行点
+                current_pin = context.pending_continuation_pin
+                # 清除 pending_continuation_pin 以避免重复使用
+                context.pending_continuation_pin = None
+                continue
             
             # 查找下一个执行输出引脚
             current_pin = self._find_pin(target_node, "then", "output")
