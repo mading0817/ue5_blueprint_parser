@@ -43,3 +43,23 @@ This document outlines the concrete tasks required to implement the new three-st
 -   [x] **Task 3.4: Integrate the New Pipeline**: Modify the application's entry point (e.g., in `app.py`) to chain the new components together: `graph_parser -> GraphAnalyzer -> MarkdownFormatter`.
 
 -   [x] **Task 3.5: Cleanup**: Once the new pipeline is fully functional and validated, remove the obsolete `parser/graph_builder.py` file and any legacy code from `parser/formatters.py`.
+
+---
+
+### Milestone 4: Analyzer Refactoring to Multi-Pass Architecture
+
+*Goal: Overhaul the `GraphAnalyzer` to use a robust, two-pass analysis method. This will fix systemic data-flow resolution issues and correctly model complex Blueprint patterns like latent actions and smart temporary variables.*
+
+-   [x] **Task 4.1: Enhance AST Model**: In `parser/models.py`, define the new `PropertyAccessNode`, `LatentActionNode`, and `UnsupportedNode` dataclasses to provide a richer, more accurate representation of Blueprint logic.
+
+-   [x] **Task 4.2: Implement Pass 1 (Symbol & Dependency Analysis)**: In `parser/analyzer.py`, implement the first pass. This involves creating a new method that traverses the graph once to build a `pin_usage_counts` map (the symbol table).
+
+-   [x] **Task 4.3: Implement `AnalysisContext` and Pass 2 Orchestration**: Define the `AnalysisContext` dataclass. Refactor the main `GraphAnalyzer.analyze` method to orchestrate the two passes, first calling the symbol analysis and then feeding its results into the main AST generation pass.
+
+-   [x] **Task 4.4: Refactor `_resolve_data_expression` for Context-Awareness**: Rework the core data resolution logic to accept the `AnalysisContext`. It will now use the `pin_usage_counts` to decide when to extract temporary variables and inject the corresponding `AssignmentNode` into the correct scope prelude (`AnalysisContext.scope_prelude`).
+
+-   [x] **Task 4.5: Implement Latent & Unsupported Node Processors**: Add a dedicated processor for `K2Node_LatentAbilityCall` that generates the new `LatentActionNode`. Also, improve the fallback mechanism to create an `UnsupportedNode` for unknown node types.
+
+-   [x] **Task 4.6: Update Formatters**: In `parser/formatters.py`, add `visit_*` methods to the `MarkdownFormatter` for the new `PropertyAccessNode`, `LatentActionNode`, and `UnsupportedNode` to ensure they are rendered correctly.
+
+-   [x] **Task 4.7: Enhance Integration Tests**: In `tests/test_pipeline_integration.py`, create a comprehensive new test case that uses a complex blueprint (like the one from our discussion) to validate that the new multi-pass analyzer correctly handles temporary variables, branches, and latent actions simultaneously.

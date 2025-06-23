@@ -15,14 +15,15 @@ The system is architected as a three-stage pipeline, inspired by modern compiler
 
 ### 2. Stage Two: Logical AST Generation
 
-*   **Module**: `parser/analyzer.py` (new)
+*   **Module**: `parser/analyzer.py`
 *   **Input**: The `BlueprintGraph` object from Stage One.
 *   **Output**: A Logical Abstract Syntax Tree (AST).
-*   **Responsibility**: This is the core of the new architecture. A `GraphAnalyzer` traverses the raw `BlueprintGraph` and transforms it into a high-level AST that represents the *program's logic*.
-    *   **AST Nodes**: The AST is composed of strong-typed nodes like `EventNode`, `AssignmentNode`, `BranchNode` (for `if/else`), `LoopNode`, and `FunctionCallNode`. This structure naturally handles nested logic and scopes.
-    *   **Node Processor Registry**: The analyzer uses a dictionary-based registry to map Blueprint node `class_type` names to specific processing functions, making the system easily extensible.
-    *   **Data Flow Analysis**: It recursively resolves data-source pins (even on pure function nodes without `exec` pins) to build nested expression trees.
-    *   **Smart Variable Extraction**: To balance readability and accuracy, a pure function's result is extracted into a temporary variable only when its output is consumed by multiple downstream nodes.
+*   **Responsibility**: This stage is the heart of the parser, transforming the raw graph into a semantically rich AST. It employs a **multi-pass analysis** approach inspired by modern compilers to ensure accuracy and robustness.
+    *   **Pass 1: Symbol & Dependency Analysis**: The analyzer first traverses the graph to build a `SymbolTable`. This table primarily calculates the usage count for every output pin, which is critical for the "Smart Variable Extraction" logic.
+    *   **Pass 2: Context-Aware AST Generation**: In the second pass, the analyzer generates the AST. It carries an `AnalysisContext` object that holds the `SymbolTable`, a memoization cache, and the current execution scope. This context allows the analyzer to make informed decisions.
+    *   **AST Nodes**: The tree is built from expressive nodes like `EventNode`, `AssignmentNode`, `BranchNode`, and `FunctionCallNode`. Crucially, it also uses specialized nodes like `LatentActionNode` (to model asynchronous operations like `WaitGameplayEvent` and their callbacks) and `PropertyAccessNode` (to represent accessing a property of an object or struct, like `Payload.EventMagnitude`).
+    *   **Smart Variable Extraction**: With the `SymbolTable`, this process is now precise. If a pure function's output pin has a usage count greater than one, an `AssignmentNode` is injected into the correct scope's "prelude," and all subsequent uses are replaced with a `VariableAccessNode`. This prevents logic duplication and maintains readability.
+    *   **Extensible Node Processors**: A registry maps blueprint node types to dedicated processing functions, allowing the system to be easily extended to support new kinds of blueprint nodes.
 
 ### 3. Stage Three: AST Formatting
 

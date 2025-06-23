@@ -11,6 +11,7 @@ from parser.models import (
     ASTNode, Expression, Statement,
     LiteralExpression, VariableGetExpression, FunctionCallExpression,
     CastExpression, MemberAccessExpression, TemporaryVariableExpression,
+    PropertyAccessNode, UnsupportedNode,
     ExecutionBlock, EventNode, AssignmentNode, FunctionCallNode,
     BranchNode, LoopNode, LoopType, MultiBranchNode, LatentActionNode,
     ReturnNode, TemporaryVariableDeclaration,
@@ -50,6 +51,14 @@ class ASTVisitor(ABC):
     
     @abstractmethod
     def visit_temporary_variable_expression(self, node: TemporaryVariableExpression) -> str:
+        pass
+    
+    @abstractmethod
+    def visit_property_access(self, node: PropertyAccessNode) -> str:
+        pass
+    
+    @abstractmethod
+    def visit_unsupported_node(self, node: UnsupportedNode) -> str:
         pass
     
     @abstractmethod
@@ -253,6 +262,19 @@ class MarkdownFormatter(ASTVisitor):
         """访问临时变量表达式"""
         return node.temp_var_name
     
+    def visit_property_access(self, node: PropertyAccessNode) -> str:
+        """格式化属性访问表达式"""
+        if node.target:
+            target_str = node.target.accept(self)
+            return f"{target_str}.{node.property_name}"
+        else:
+            return node.property_name
+    
+    def visit_unsupported_node(self, node: UnsupportedNode) -> str:
+        """格式化不支持的节点"""
+        self._add_line(f"// Unsupported node: {node.class_name} ({node.node_name})")
+        return ""
+    
     # ========================================================================
     # 语句节点访问方法
     # ========================================================================
@@ -422,36 +444,19 @@ class MarkdownFormatter(ASTVisitor):
     
     def visit_latent_action_node(self, node: LatentActionNode) -> str:
         """访问延迟动作节点"""
-        # 构建参数列表
-        args = []
-        for param_name, arg_expr in node.arguments:
-            if arg_expr:
-                arg_value = arg_expr.accept(self)
-                if param_name and param_name.lower() != "value":
-                    args.append(f"{param_name}: {arg_value}")
-                else:
-                    args.append(arg_value)
+        if node.call:
+            # 格式化异步函数调用
+            call_str = node.call.accept(self)
+            self._add_line(f"await {call_str}")
+        else:
+            self._add_line("await <unknown_latent_action>()")
         
-        args_str = ", ".join(args)
-        self._add_line(f"await {node.action_name}({args_str})")
-        
-        # 处理输出数据
-        for var_name, output_pin in node.output_data:
-            self._add_line(f"// {var_name} = {node.action_name}.{output_pin}")
-        
-        # 处理完成后的执行流
-        if node.on_completed and node.on_completed.statements:
-            self._add_line("// 完成后执行:")
-            self.current_indent += 1
-            self.visit_execution_block(node.on_completed)
-            self.current_indent -= 1
-        
-        # 处理其他输出流
-        for flow_name, flow_body in node.output_flows.items():
-            if flow_body and flow_body.statements:
-                self._add_line(f"// {flow_name}:")
+        # 处理回调执行流
+        for callback_name, callback_body in node.callback_exec_pins.items():
+            if callback_body and callback_body.statements:
+                self._add_line(f"// {callback_name}:")
                 self.current_indent += 1
-                self.visit_execution_block(flow_body)
+                self.visit_execution_block(callback_body)
                 self.current_indent -= 1
         
         return ""
@@ -592,6 +597,14 @@ class MermaidFormatter(ASTVisitor):
     def visit_temporary_variable_expression(self, node: TemporaryVariableExpression) -> str:
         return f"TempVar: {node.temp_var_name}"
     
+    def visit_property_access(self, node: PropertyAccessNode) -> str:
+        if node.target:
+            self._add_edge(node, node.target, "target")
+        return f"Property: {node.property_name}"
+    
+    def visit_unsupported_node(self, node: UnsupportedNode) -> str:
+        return f"Unsupported: {node.class_name}"
+    
     def visit_execution_block(self, node: ExecutionBlock) -> str:
         for i, stmt in enumerate(node.statements):
             self._add_edge(node, stmt, f"stmt{i}")
@@ -651,20 +664,17 @@ class MermaidFormatter(ASTVisitor):
         return "MultiBranch"
     
     def visit_latent_action_node(self, node: LatentActionNode) -> str:
-        # 处理参数连接
-        for param_name, arg_expr in node.arguments:
-            if arg_expr:
-                self._add_edge(node, arg_expr, param_name)
+        # 处理函数调用连接
+        if node.call:
+            self._add_edge(node, node.call, "call")
         
-        # 处理执行流连接
-        if node.on_completed:
-            self._add_edge(node, node.on_completed, "completed")
+        # 处理回调执行流连接
+        for callback_name, callback_body in node.callback_exec_pins.items():
+            if callback_body:
+                self._add_edge(node, callback_body, callback_name)
         
-        for flow_name, flow_body in node.output_flows.items():
-            if flow_body:
-                self._add_edge(node, flow_body, flow_name)
-        
-        return f"LatentAction: {node.action_name}"
+        call_name = node.call.function_name if node.call else "LatentAction"
+        return f"LatentAction: {call_name}"
     
     def visit_return_node(self, node: ReturnNode) -> str:
         for output_name, value_expr in node.return_values:

@@ -202,6 +202,20 @@ class TemporaryVariableExpression(Expression):
         return visitor.visit_temporary_variable_expression(self)
 
 
+@dataclass
+class PropertyAccessNode(Expression):
+    """
+    属性访问节点
+    例如: Payload.EventTag, Actor.Health
+    用于表示对对象或结构体属性的访问
+    """
+    target: Optional[Expression] = None  # 目标对象或表达式
+    property_name: str = ""  # 属性名称
+    
+    def accept(self, visitor):
+        return visitor.visit_property_access(self)
+
+
 # ============================================================================
 # 语句节点 (Statement Nodes)
 # ============================================================================
@@ -326,16 +340,11 @@ class MultiBranchNode(Statement):
 class LatentActionNode(Statement):
     """
     延迟/异步动作节点
-    例如: Delay(2.0), WaitForEvent, AsyncLoadAsset
+    例如: WaitGameplayEvent, Delay, AsyncLoadAsset
+    用于表示异步操作及其回调执行流
     """
-    action_name: str = ""
-    arguments: List[Tuple[str, Expression]] = field(default_factory=list)
-    # 完成后的执行流
-    on_completed: Optional[ExecutionBlock] = None
-    # 其他输出执行流（例如：OnSuccess, OnFail）
-    output_flows: Dict[str, ExecutionBlock] = field(default_factory=dict)
-    # 输出数据
-    output_data: List[Tuple[str, str]] = field(default_factory=list)  # [(var_name, output_pin_name), ...]
+    call: Optional['FunctionCallNode'] = None  # 异步函数调用
+    callback_exec_pins: Dict[str, 'ExecutionBlock'] = field(default_factory=dict)  # 回调执行引脚 {"EventReceived": ExecutionBlock, ...}
     
     def accept(self, visitor):
         return visitor.visit_latent_action_node(self)
@@ -369,6 +378,19 @@ class TemporaryVariableDeclaration(Statement):
     
     def accept(self, visitor):
         return visitor.visit_temporary_variable_declaration(self)
+
+
+@dataclass
+class UnsupportedNode(Statement):
+    """
+    不支持的节点类型
+    用于表示解析器尚未支持的蓝图节点类型
+    """
+    class_name: str = ""  # 节点的类名
+    node_name: str = ""   # 节点的名称
+    
+    def accept(self, visitor):
+        return visitor.visit_unsupported_node(self)
 
 
 # Type aliases for convenience
