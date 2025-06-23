@@ -1,6 +1,7 @@
 """
 Blueprint Graph Analyzer
 将原始的BlueprintGraph转换为逻辑抽象语法树(AST)
+支持新的统一解析模型架构
 """
 
 from typing import Dict, List, Optional, Callable, Set, Tuple, Any
@@ -17,7 +18,9 @@ from .models import (
     # 控制流节点
     BranchNode, LoopNode, LoopType, MultiBranchNode, LatentActionNode,
     # 新的语义节点
-    VariableDeclaration, CallbackBlock
+    VariableDeclaration, CallbackBlock,
+    # 新架构核心数据结构
+    ResolutionResult, EventReferenceExpression, LoopVariableExpression
 )
 from .symbol_table import SymbolTable, Symbol
 
@@ -37,6 +40,7 @@ class AnalysisContext:
     scope_prelude: List[Statement] = field(default_factory=list)  # 当前作用域的前置语句（临时变量声明等）
     memoization_cache: Dict[str, Expression] = field(default_factory=dict)  # pin_key -> cached_expression
     visited_nodes: Set[str] = field(default_factory=set)  # 已访问的节点GUID
+    pin_ast_map: Dict[str, Expression] = field(default_factory=dict)  # pin_id -> AST表达式映射，用于循环变量等特殊节点
 
 
 # 旧的AnalysisState类已被AnalysisContext替代
@@ -46,6 +50,7 @@ class GraphAnalyzer:
     """
     蓝图图分析器
     负责将BlueprintGraph转换为逻辑AST
+    新架构：支持统一解析模型
     """
     
     def __init__(self):
@@ -110,10 +115,41 @@ class GraphAnalyzer:
         """
         self._node_processors[node_type] = processor
     
+    # ========================================================================
+    # 新架构核心方法：统一解析模型
+    # ========================================================================
+    
+    def resolve(self, context: AnalysisContext, pin: GraphPin) -> ResolutionResult:
+        """
+        统一解析方法 - 新架构的核心
+        解析一个引脚，返回其触发的语句和/或产生的表达式
+        
+        :param context: 分析上下文
+        :param pin: 要解析的引脚
+        :return: 解析结果，包含语句和表达式
+        """
+        # 如果是执行引脚，解析后续的执行流
+        if pin.pin_type == "exec" and pin.direction == "output":
+            statements = []
+            self._follow_execution_flow(context, pin, statements)
+            return ResolutionResult(statements=statements, expression=None)
+        
+        # 如果是数据引脚，解析数据表达式
+        elif pin.pin_type != "exec":
+            expression = self._resolve_data_expression(context, pin)
+            return ResolutionResult(statements=[], expression=expression)
+        
+        # 其他情况返回空结果
+        return ResolutionResult(statements=[], expression=None)
+    
+    # ========================================================================
+    # 分析入口方法（已更新为使用新架构）
+    # ========================================================================
+    
     def analyze(self, graph: BlueprintGraph) -> List[ASTNode]:
         """
         分析蓝图图并返回AST节点列表
-        主入口方法 - 使用多遍分析架构
+        主入口方法 - 使用统一解析模型架构
         """
         # Pass 1: 符号与依赖分析
         pin_usage_counts = self._perform_symbol_analysis(graph)
@@ -247,9 +283,16 @@ class GraphAnalyzer:
             literal_type="null"
         )
         
-        # 创建赋值节点
-        assignment = AssignmentNode(
+        # 创建目标表达式 - 符合新架构要求
+        target_expr = VariableGetExpression(
             variable_name=var_name,
+            is_self_variable=is_self_context,
+            source_location=self._create_source_location(node)
+        )
+        
+        # 创建赋值节点 - 使用新的target字段
+        assignment = AssignmentNode(
+            target=target_expr,
             value_expression=value_expr,
             is_local_variable=not is_self_context,
             source_location=self._create_source_location(node)
@@ -435,6 +478,29 @@ class GraphAnalyzer:
             literal_type="array"
         )
         
+        # 获取循环输出引脚，用于建立 pin→AST 映射
+        element_pin = self._find_pin(node, "Array Element", "output")
+        index_pin = self._find_pin(node, "Array Index", "output")
+        
+        # 创建 LoopVariableExpression 实例
+        loop_id = node.node_guid  # 使用节点 GUID 作为循环 ID
+        element_expr = LoopVariableExpression(
+            variable_name="ArrayElement",
+            is_index=False,
+            loop_id=loop_id
+        )
+        index_expr = LoopVariableExpression(
+            variable_name="ArrayIndex", 
+            is_index=True,
+            loop_id=loop_id
+        )
+        
+        # 建立 pin→AST 映射，解决 UnknownFunction 问题
+        if element_pin:
+            context.pin_ast_map[element_pin.pin_id] = element_expr
+        if index_pin:
+            context.pin_ast_map[index_pin.pin_id] = index_expr
+        
         # 创建循环变量声明
         item_declaration = VariableDeclaration(
             variable_name="ArrayElement",
@@ -460,15 +526,17 @@ class GraphAnalyzer:
         
         # 在新作用域中处理循环体
         with context.symbol_table.scoped():
-            # 定义循环变量
+            # 定义循环变量，关联 LoopVariableExpression 作为值
             context.symbol_table.define(
                 "ArrayElement", "auto", 
-                declaration=item_declaration, 
+                declaration=item_declaration,
+                value=element_expr,
                 is_loop_variable=True
             )
             context.symbol_table.define(
                 "ArrayIndex", "int", 
-                declaration=index_declaration, 
+                declaration=index_declaration,
+                value=index_expr,
                 is_loop_variable=True
             )
             
@@ -668,12 +736,21 @@ class GraphAnalyzer:
         
         return event_node
     
-    def _process_dynamic_cast(self, context: AnalysisContext, node: GraphNode) -> Optional[AssignmentNode]:
+    def _process_dynamic_cast(self, context: AnalysisContext, node: GraphNode) -> Optional[BranchNode]:
         """
-        处理动态类型转换节点
-        K2Node_DynamicCast -> AssignmentNode (with CastExpression)
+        处理动态类型转换节点 - 战略重构版本
+        K2Node_DynamicCast -> BranchNode (条件分支节点，正确反映其本质逻辑)
+        
+        Dynamic Cast本质上是一个条件分支：
+        if (cast successful) {
+            // 声明转换后的变量并执行then分支
+            AsTargetType = cast(source)
+            // 后续执行流...
+        } else {
+            // 执行CastFailed分支
+        }
         """
-        # 提取目标类型信息
+        # 第一步：提取目标类型信息
         target_type = node.properties.get("TargetType", "")
         if isinstance(target_type, dict):
             # 如果是复杂对象，尝试提取类型名称
@@ -681,14 +758,19 @@ class GraphAnalyzer:
         elif isinstance(target_type, str):
             # 如果是字符串，可能包含类型路径，提取类名
             if "'" in target_type:
-                # 格式如: Class'/Game/Blueprints/MyClass.MyClass_C'
-                target_type_name = target_type.split("'")[-2].split(".")[-1] if "'" in target_type else target_type
+                # 格式如: /Script/CoreUObject.Class'/Script/XiangYang.AttributesMenuController'
+                parts = target_type.split("'")
+                if len(parts) >= 2:
+                    class_path = parts[-2]  # 取倒数第二个部分
+                    target_type_name = class_path.split(".")[-1]  # 取最后一个点后的部分
+                else:
+                    target_type_name = target_type
             else:
                 target_type_name = target_type
         else:
             target_type_name = "UnknownType"
         
-        # 查找输入对象引脚
+        # 第二步：查找输入对象引脚并解析源表达式
         object_pin = self._find_pin(node, "Object", "input")
         if not object_pin:
             # 尝试查找任何非exec的输入引脚
@@ -702,60 +784,110 @@ class GraphAnalyzer:
             value="null", literal_type="null"
         )
         
-        # 创建类型转换表达式
+        # 第三步：创建类型转换表达式作为条件
         cast_expr = CastExpression(
             source_expression=source_expr,
             target_type=target_type_name,
             source_location=self._create_source_location(node)
         )
         
-        # 查找输出变量名称（通常是"As [TargetType]"格式）
-        output_var_name = f"As {target_type_name}"
+        # 第四步：构建true分支（转换成功）
+        true_branch = ExecutionBlock(source_location=self._create_source_location(node))
         
-        # 创建赋值节点
-        assignment = AssignmentNode(
+        # 在true分支中，首先声明转换后的变量
+        output_var_name = f"As{target_type_name}"  # 遵循UE蓝图的命名约定
+        var_declaration = VariableDeclaration(
             variable_name=output_var_name,
-            value_expression=cast_expr,
-            is_local_variable=True,  # 转换结果通常是局部变量
+            variable_type=target_type_name,
+            initial_value=cast_expr,  # 变量的初始值就是转换表达式
+            is_loop_variable=False,
+            is_callback_parameter=False,
+            source_location=self._create_source_location(node)
+        )
+        true_branch.statements.append(var_declaration)
+        
+        # 然后跟随then引脚的执行流
+        then_pin = self._find_pin(node, "then", "output")
+        if then_pin and then_pin.linked_to:
+            self._follow_execution_flow(context, then_pin, true_branch.statements)
+        
+        # 第五步：构建false分支（转换失败）
+        false_branch = ExecutionBlock(source_location=self._create_source_location(node))
+        
+        # 跟随CastFailed引脚的执行流
+        cast_failed_pin = self._find_pin(node, "CastFailed", "output")
+        if cast_failed_pin and cast_failed_pin.linked_to:
+            self._follow_execution_flow(context, cast_failed_pin, false_branch.statements)
+        
+        # 第六步：创建分支节点
+        branch_node = BranchNode(
+            condition=cast_expr,  # 转换表达式本身作为条件
+            true_branch=true_branch,
+            false_branch=false_branch if false_branch.statements else None,  # 如果false分支为空则设为None
             source_location=self._create_source_location(node)
         )
         
-        return assignment
+        return branch_node
     
     def _process_assign_delegate(self, context: AnalysisContext, node: GraphNode) -> Optional[AssignmentNode]:
         """
-        处理委托赋值节点
+        处理委托赋值节点 - 新架构版本
         K2Node_AssignDelegate -> AssignmentNode (delegate assignment)
+        支持复杂的委托目标表达式，如 CloseButton.Button.OnClicked = MyEvent
         """
-        # 提取委托属性信息
-        delegate_property = node.properties.get("DelegatePropertyName", "")
-        if isinstance(delegate_property, str):
-            delegate_name = delegate_property.strip('"') if delegate_property else "UnknownDelegate"
-        else:
-            delegate_name = "UnknownDelegate"
+        # 第一步：解析委托属性信息
+        delegate_reference = node.properties.get("DelegateReference", "")
+        delegate_name = "UnknownDelegate"
         
-        # 查找委托目标引脚（通常是"Delegate"或委托名称）
+        if isinstance(delegate_reference, str) and "MemberName=" in delegate_reference:
+            import re
+            match = re.search(r'MemberName="([^"]+)"', delegate_reference)
+            if match:
+                delegate_name = match.group(1)
+        
+        # 第二步：解析赋值目标（左值）- 通过self引脚
+        self_pin = self._find_pin(node, "self", "input")
+        if not self_pin:
+            # 兼容性：尝试查找Target引脚
+            self_pin = self._find_pin(node, "Target", "input")
+        
+        if self_pin:
+            # 解析目标对象表达式
+            target_object_expr = self._resolve_data_expression(context, self_pin)
+            # 创建属性访问表达式：TargetObject.DelegateName
+            target_expr = PropertyAccessNode(
+                target=target_object_expr,
+                property_name=delegate_name,
+                source_location=self._create_source_location(node)
+            )
+        else:
+            # 如果没有self引脚，假设是简单变量赋值
+            target_expr = VariableGetExpression(
+                variable_name=delegate_name,
+                source_location=self._create_source_location(node)
+            )
+        
+        # 第三步：解析赋值源（右值）- 通过Delegate引脚
         delegate_pin = self._find_pin(node, "Delegate", "input")
         if not delegate_pin:
-            delegate_pin = self._find_pin(node, delegate_name, "input")
-        if not delegate_pin:
-            # 尝试查找任何非exec的输入引脚
-            for pin in node.pins:
-                if pin.direction == "input" and pin.pin_type not in ["exec"]:
-                    delegate_pin = pin
-                    break
+            # 尝试查找Event引脚
+            delegate_pin = self._find_pin(node, "Event", "input")
         
-        # 解析委托目标表达式
         if delegate_pin:
-            delegate_expr = self._resolve_data_expression(context, delegate_pin)
+            # 解析委托源表达式
+            value_expr = self._resolve_data_expression(context, delegate_pin)
         else:
-            # 如果没有找到委托引脚，可能是绑定到特定的事件或函数
-            delegate_expr = LiteralExpression(value="[Event Binding]", literal_type="delegate")
+            # 如果没有找到委托引脚，创建一个未知表达式
+            value_expr = LiteralExpression(
+                value="UnknownDelegate",
+                literal_type="delegate",
+                source_location=self._create_source_location(node)
+            )
         
-        # 创建委托赋值节点
+        # 第四步：创建增强的赋值节点
         assignment = AssignmentNode(
-            variable_name=delegate_name,
-            value_expression=delegate_expr,
+            target=target_expr,  # 使用新的target字段
+            value_expression=value_expr,
             is_local_variable=False,  # 委托通常是成员变量
             source_location=self._create_source_location(node)
         )
@@ -980,6 +1112,10 @@ class GraphAnalyzer:
         if not pin:
             return LiteralExpression(value="null", literal_type="null")
         
+        # 优先检查 pin_ast_map：如果该引脚已有预定义的 AST 表达式（如循环变量），直接返回
+        if pin.pin_id in context.pin_ast_map:
+            return context.pin_ast_map[pin.pin_id]
+        
         # 如果引脚没有连接，检查是否为符号表中的变量名或使用默认值
         if not pin.linked_to:
             # 尝试将pin名称作为变量名在符号表中查找
@@ -998,6 +1134,10 @@ class GraphAnalyzer:
         source_link = pin.linked_to[0]
         source_node_id = source_link.get("node_guid") or source_link.get("node_name")
         source_pin_id = source_link.get("pin_id")
+        
+        # 关键修复：检查源引脚是否在 pin_ast_map 中（循环变量等特殊引脚）
+        if source_pin_id and source_pin_id in context.pin_ast_map:
+            return context.pin_ast_map[source_pin_id]
         
         # 生成缓存键
         cache_key = f"{source_node_id}:{source_pin_id}"
@@ -1163,6 +1303,53 @@ class GraphAnalyzer:
         # K2Node_GetArrayItem - 数组访问
         elif 'K2Node_GetArrayItem' in node.class_type:
             return self._process_array_access_node(context, node)
+        
+        # K2Node_DynamicCast - 动态类型转换（返回转换后的变量引用）
+        elif 'K2Node_DynamicCast' in node.class_type:
+            # 提取目标类型信息
+            target_type = node.properties.get("TargetType", "")
+            if isinstance(target_type, str) and "'" in target_type:
+                # 格式如: /Script/CoreUObject.Class'/Script/XiangYang.AttributesMenuController'
+                parts = target_type.split("'")
+                if len(parts) >= 2:
+                    class_path = parts[-2]  # 取倒数第二个部分
+                    target_type_name = class_path.split(".")[-1]  # 取最后一个点后的部分
+                else:
+                    target_type_name = target_type
+            else:
+                target_type_name = "UnknownType"
+            
+            # 返回对转换后变量的引用
+            var_name = f"As{target_type_name}"  # 遵循UE蓝图的命名约定
+            return VariableGetExpression(
+                variable_name=var_name,
+                is_self_variable=False,  # 转换后的变量是局部变量
+                source_location=self._create_source_location(node)
+            )
+        
+        # K2Node_CustomEvent - 自定义事件（作为事件引用）
+        elif 'K2Node_CustomEvent' in node.class_type:
+            event_name = node.properties.get("CustomFunctionName", "UnknownEvent")
+            return EventReferenceExpression(
+                event_name=event_name,
+                source_location=self._create_source_location(node)
+            )
+        
+        # K2Node_Event - 标准事件（作为事件引用）
+        elif 'K2Node_Event' in node.class_type:
+            event_ref = node.properties.get("EventReference", "")
+            event_name = "UnknownEvent"
+            
+            if isinstance(event_ref, str) and "MemberName=" in event_ref:
+                import re
+                match = re.search(r'MemberName="([^"]+)"', event_ref)
+                if match:
+                    event_name = match.group(1)
+            
+            return EventReferenceExpression(
+                event_name=event_name,
+                source_location=self._create_source_location(node)
+            )
         
         # 默认处理：尝试作为函数调用
         return self._process_call_function_as_expression(context, node)

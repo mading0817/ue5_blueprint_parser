@@ -13,25 +13,36 @@ The system is architected as a three-stage pipeline, inspired by modern compiler
 *   **Output**: A `BlueprintGraph` object.
 *   **Responsibility**: This stage is responsible for a high-fidelity, lossless conversion of the raw text into a foundational graph data structure. It parses all nodes, pins, and their explicit `LinkedTo` connections without interpreting their logical meaning. The output is a complete, raw representation of the blueprint's structure.
 
-### 2. Stage Two: Logical AST Generation
+### 2. Stage Two: Logical AST Generation (New Architecture)
 
-*   **Module**: `parser/analyzer.py` (with new `parser/symbol_table.py`)
+*   **Module**: `parser/analyzer.py` (with `parser/symbol_table.py`)
 *   **Input**: The `BlueprintGraph` object from Stage One.
-*   **Output**: A **Semantically-Rich Logical Abstract Syntax Tree (AST)**.
-*   **Responsibility**: This stage is the heart of the parser, transforming the raw graph into a semantically complete AST. It abandons fragile, stateful tracking in favor of producing a self-descriptive AST, inspired by modern compiler theory.
-    *   **AST-Driven Semantics**: Instead of relying on the analyzer to "remember" the context of a loop or an async callback, the AST nodes themselves are enhanced to declare their own context. For example, a `LoopNode` now contains `VariableDeclaration` objects for its `item` and `index`, and a `LatentActionNode` explicitly lists the variables provided by its callbacks. This makes the AST a standalone, unambiguous representation of the blueprint's logic.
-    *   **Formal Symbol Table**: A dedicated `SymbolTable` class manages scopes. As the analyzer traverses the graph, it pushes and pops scopes on the symbol table (e.g., upon entering/leaving a loop body). When resolving a variable, it queries the symbol table directly, which correctly handles scope-based visibility and shadowing.
-    *   **Decoupled Data Flow Resolution**: The logic for resolving data (`_resolve_data_expression`) is simplified. Its primary responsibility is to query the `SymbolTable` for variables or to trace connections for direct function call results. This has successfully eliminated the `UnknownFunction` errors caused by the old model's inability to distinguish between a value-providing node and a context-providing node, and now correctly handles complex data structures and intermediate connection nodes like `K2Node_Knot`.
-    *   **Extensible Node Processors**: A registry maps blueprint node types to dedicated processing functions. This remains a key feature, allowing the system to be easily extended to support new kinds of blueprint nodes, including those that create new lexical scopes. Recently added support for `K2Node_CustomEvent`, `K2Node_DynamicCast`, `K2Node_AssignDelegate`, and `K2Node_CallArrayFunction` nodes.
+*   **Output**: A **Semantically-Rich, Context-Aware, Logical Abstract Syntax Tree (AST)**.
+*   **Responsibility**: This stage is the heart of the parser. It has been redesigned to overcome the limitations of the previous model, which led to systemic errors like `UnknownFunction` and `UnknownDelegate`. The new architecture is founded on a **"Unified Resolution Model"**.
+
+#### Core Principles of the New Architecture:
+
+1.  **Unified Resolution Model**:
+    *   The previous separation of `_follow_execution_flow` and `_resolve_data_expression` was a critical flaw, as it failed to model the intertwined nature of execution and data flow in Blueprints.
+    *   **Solution**: We've introduced a single, higher-order resolution function: `resolve(pin) -> ResolutionResult`. This function returns both the sequence of statements triggered by an execution pin and the data value expression produced by a data pin. This elegantly models how a single Blueprint node can both perform an action and yield a result.
+
+2.  **Context-Aware AST with Bidirectional Linking**:
+    *   Previously, the AST was a simple tree, and the Symbol Table was an external tool. This made it difficult to understand a node's context.
+    *   **Solution**: The Symbol Table is now a tree of `Scope` objects, each corresponding to a lexical scope (like a loop body or an event callback). Crucially, every `ASTNode` now holds a direct reference to the `Scope` it belongs to, and each `Scope` references the `ASTNode` that created it. This creates a self-contained, context-aware AST where any node's full environment can be easily introspected.
+
+3.  **Enhanced AST Semantics for Complex Patterns**:
+    *   To address the root cause of parsing failures, the AST (`parser/models.py`) has been upgraded to express complex Blueprint patterns natively:
+        *   **`PropertyAccessNode`**: Enables the representation of nested property access chains (e.g., `Variable.Member.SubMember`), which is critical for correctly parsing component and object interactions.
+        *   **`AssignmentNode.target: Expression`**: The left-hand side of an assignment is no longer a simple string but a full expression. This allows for complex assignments like `MyButton.OnClicked = MyEvent`, which was previously impossible.
+        *   **`EventReferenceExpression`**: A dedicated AST node to represent a reference to a bindable event, distinguishing it semantically from a function call.
+        *   **`LoopVariableExpression`**: NEW   A first-class node used to represent iterator variables generated by loop-style macros (e.g. `ArrayElement`, `ArrayIndex`, `LoopCounter`). This removes the need for fragile string matching and guarantees that any macro-defined variable is resolved in the AST phase instead of degrading to `UnknownFunction` placeholders.
+
+This new architecture replaces the previous, fragile approach, ensuring that the parsing process is robust, maintainable, and correctly interprets the complex interplay of execution, data flow, scope, and bindings within UE Blueprints.
 
 ### 3. Stage Three: AST Formatting
 
-*   **Module**: `parser/formatters.py` (refactored)
-*   **Input**: The Logical AST from Stage Two.
+*   **Module**: `parser/formatters.py` (requires updates)
+*   **Input**: The new, semantically-rich Logical AST from Stage Two.
 *   **Output**: A formatted string (e.g., Markdown pseudo-code).
-*   **Responsibility**: This stage translates the logical AST into a final textual representation.
-    *   **Visitor Pattern**: Formatters are implemented as visitors that traverse the AST. This decouples the logical representation from its presentation.
-    *   **Formatting Strategies**: Different strategies can be applied to the same AST to produce different outputs (e.g., a `VerboseStrategy` for detailed debugging vs. a `ConciseStrategy` for a high-level overview).
-    *   **Diagnostics**: A `MermaidFormatter` will also be implemented to visualize the generated AST, providing a powerful tool for validation and debugging.
-
-This new architecture replaces the previous, fragmented approach, ensuring that the parsing process is robust, maintainable, and correctly interprets the complex interplay of execution and data flow within UE Blueprints.
+*   **Responsibility**: This stage translates the logical AST into a final textual representation. It must be updated to support the new AST nodes (`PropertyAccessNode`, `EventReferenceExpression`, etc.) to correctly render the new, more complex structures.
+    *   **Visitor Pattern**: Formatters will continue to be implemented as visitors that traverse the AST. This decoupling of logic from presentation remains a core design principle.

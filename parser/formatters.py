@@ -110,6 +110,14 @@ class ASTVisitor(ABC):
     @abstractmethod
     def visit_callback_block(self, node: CallbackBlock) -> str:
         pass
+    
+    @abstractmethod
+    def visit_event_reference_expression(self, node) -> str:
+        pass
+
+    @abstractmethod
+    def visit_loop_variable_expression(self, node) -> str:
+        pass
 
 
 # ============================================================================
@@ -324,12 +332,19 @@ class MarkdownFormatter(ASTVisitor):
         """访问赋值节点"""
         if node.value_expression:
             value_str = node.value_expression.accept(self)
-            if node.is_local_variable:
-                self._add_line(f"let {node.variable_name} = {value_str}")
-            else:
-                self._add_line(f"{node.variable_name} = {value_str}")
         else:
-            self._add_line(f"{node.variable_name} = <unknown>")
+            value_str = "<unknown>"
+        
+        # 处理新的target字段或向后兼容的variable_name
+        if hasattr(node, 'target') and node.target:
+            target_str = node.target.accept(self)
+        else:
+            target_str = node.variable_name
+        
+        if node.is_local_variable:
+            self._add_line(f"let {target_str} = {value_str}")
+        else:
+            self._add_line(f"{target_str} = {value_str}")
         
         return ""
     
@@ -546,6 +561,14 @@ class MarkdownFormatter(ASTVisitor):
             statement.accept(self)
         
         return ""
+    
+    def visit_event_reference_expression(self, node) -> str:
+        """访问事件引用表达式"""
+        return node.event_name
+
+    def visit_loop_variable_expression(self, node) -> str:
+        """访问循环变量表达式"""
+        return node.variable_name
 
 
 # ============================================================================
@@ -674,7 +697,15 @@ class MermaidFormatter(ASTVisitor):
     def visit_assignment_node(self, node: AssignmentNode) -> str:
         if node.value_expression:
             self._add_edge(node, node.value_expression, "value")
-        return f"Assign: {node.variable_name}"
+        
+        # 处理新的target字段或向后兼容的variable_name
+        if hasattr(node, 'target') and node.target:
+            self._add_edge(node, node.target, "target")
+            target_name = "PropertyAccess" if hasattr(node.target, 'property_name') else "Variable"
+        else:
+            target_name = node.variable_name
+        
+        return f"Assign: {target_name}"
     
     def visit_function_call_node(self, node: FunctionCallNode) -> str:
         # 处理参数连接
@@ -758,6 +789,13 @@ class MermaidFormatter(ASTVisitor):
             self._add_edge(node, stmt, f"stmt{i}")
         
         return "CallbackBlock"
+    
+    def visit_event_reference_expression(self, node) -> str:
+        return f"Event: {node.event_name}"
+
+    def visit_loop_variable_expression(self, node) -> str:
+        """访问循环变量表达式"""
+        return node.variable_name
 
 
 # ============================================================================

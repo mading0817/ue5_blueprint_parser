@@ -1,7 +1,12 @@
 from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional, Tuple, Union
+from typing import List, Dict, Any, Optional, Tuple, Union, TYPE_CHECKING
 from abc import ABC, abstractmethod
 from enum import Enum
+import weakref
+
+# 避免循环导入
+if TYPE_CHECKING:
+    from .symbol_table import Scope
 
 
 @dataclass
@@ -69,6 +74,20 @@ class Blueprint:
 
 
 # ============================================================================
+# 新架构核心数据结构 (New Architecture Core Data Structures)
+# ============================================================================
+
+@dataclass
+class ResolutionResult:
+    """
+    统一解析结果
+    包含执行语句和数据表达式，支持统一解析模型
+    """
+    statements: List['Statement'] = field(default_factory=list)  # 由该pin触发的所有后续执行语句
+    expression: Optional['Expression'] = None  # 该pin自身产生的数据值表达式（如果它是数据引脚）
+
+
+# ============================================================================
 # AST (Abstract Syntax Tree) Node Definitions
 # ============================================================================
 # 这些类定义了逻辑抽象语法树的节点，用于表示蓝图的程序逻辑
@@ -91,14 +110,28 @@ class ASTNode(ABC):
     """
     所有AST节点的抽象基类
     提供通用的功能和访问者模式支持
+    新架构：支持双向链接到作用域
     """
     source_location: Optional[SourceLocation] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
+    # 新增：指向该节点所在作用域的弱引用（避免循环引用）
+    scope: Optional[weakref.ReferenceType] = None
     
     @abstractmethod
     def accept(self, visitor):
         """访问者模式的accept方法"""
         pass
+    
+    def get_scope(self) -> Optional['Scope']:
+        """获取该节点所在的作用域"""
+        if self.scope:
+            return self.scope()
+        return None
+    
+    def set_scope(self, scope: 'Scope') -> None:
+        """设置该节点所在的作用域"""
+        if scope:
+            self.scope = weakref.ref(scope)
 
 
 @dataclass
@@ -205,15 +238,45 @@ class TemporaryVariableExpression(Expression):
 @dataclass
 class PropertyAccessNode(Expression):
     """
-    属性访问节点
-    例如: Payload.EventTag, Actor.Health
-    用于表示对对象或结构体属性的访问
+    属性访问节点 - 增强版
+    例如: CloseButton.Button.OnClicked, Actor.Health
+    用于表示对对象或结构体属性的访问，支持链式访问
     """
     target: Optional[Expression] = None  # 目标对象或表达式
     property_name: str = ""  # 属性名称
     
     def accept(self, visitor):
         return visitor.visit_property_access(self)
+
+
+@dataclass
+class EventReferenceExpression(Expression):
+    """
+    事件引用表达式 - 新增
+    用于表示对一个可绑定事件的引用
+    例如: CloseAttributesMenu, OnMenuOpenChanged_Event
+    区别于函数调用，这是对事件本身的引用
+    """
+    event_name: str = ""
+    
+    def accept(self, visitor):
+        return visitor.visit_event_reference_expression(self)
+
+
+@dataclass
+class LoopVariableExpression(Expression):
+    """
+    循环变量表达式 - 新增
+    用于表示由循环宏（如 ForEachLoop）生成的迭代器变量
+    例如: ArrayElement, ArrayIndex, LoopCounter
+    通过显式 AST 节点避免降级为 UnknownFunction 占位符
+    """
+    variable_name: str = ""
+    is_index: bool = False  # True 表示索引变量（如 ArrayIndex），False 表示元素变量（如 ArrayElement）
+    loop_id: str = ""  # 关联的循环节点 ID，用于区分嵌套循环中的同名变量
+    
+    def accept(self, visitor):
+        return visitor.visit_loop_variable_expression(self)
 
 
 @dataclass
@@ -278,12 +341,24 @@ class EventNode(Statement):
 @dataclass
 class AssignmentNode(Statement):
     """
-    赋值语句节点
-    例如: Health = 100, Position = GetActorLocation()
+    赋值语句节点 - 增强版
+    支持复杂的左值表达式，如属性访问链
+    例如: Health = 100, CloseButton.Button.OnClicked = MyEvent
     """
-    variable_name: str = ""
-    value_expression: Optional[Expression] = None
+    target: Expression = None  # 赋值目标（左值表达式）
+    value_expression: Optional[Expression] = None  # 赋值源（右值表达式）
     is_local_variable: bool = False  # 是否是局部变量声明
+    
+    # 向后兼容性属性
+    @property
+    def variable_name(self) -> str:
+        """向后兼容：提取简单变量名"""
+        if isinstance(self.target, VariableGetExpression):
+            return self.target.variable_name
+        elif isinstance(self.target, PropertyAccessNode):
+            return self.target.property_name
+        else:
+            return "UnknownTarget"
     
     def accept(self, visitor):
         return visitor.visit_assignment_node(self)
