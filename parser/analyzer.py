@@ -605,8 +605,9 @@ class GraphAnalyzer:
     
     def _process_latent_ability_call(self, context: AnalysisContext, node: GraphNode) -> Optional[LatentActionNode]:
         """
-        处理潜在动作节点
+        处理潜在动作节点 - 修复版本
         K2Node_LatentAbilityCall -> LatentActionNode
+        正确处理回调的数据输出引脚，解决 UnknownFunction 问题
         """
         # 提取动作名称
         proxy_factory_func = node.properties.get("ProxyFactoryFunctionName", "UnknownAction")
@@ -642,15 +643,40 @@ class GraphAnalyzer:
         for pin in node.pins:
             if pin.direction == "output" and pin.pin_type == "exec":
                 if pin.pin_name != "then":  # "then"是主执行流，不算回调
-                    # 为每个回调创建变量声明（基于回调名称推断可能的参数）
-                    callback_declarations = self._infer_callback_parameters(pin.pin_name, node)
+                    # 关键修复：识别与该回调执行引脚一同输出的数据引脚
+                    callback_data_pins = []
+                    for data_pin in node.pins:
+                        if (data_pin.direction == "output" and 
+                            data_pin.pin_type not in ["exec"] and
+                            data_pin.pin_name not in ["AsyncTaskProxy"]):  # 排除异步任务代理引脚
+                            callback_data_pins.append(data_pin)
+                    
+                    # 为每个数据引脚创建变量声明
+                    callback_declarations = []
+                    for data_pin in callback_data_pins:
+                        var_declaration = VariableDeclaration(
+                            variable_name=data_pin.pin_name,
+                            variable_type=data_pin.pin_type,
+                            is_callback_parameter=True,
+                            source_location=self._create_source_location(node)
+                        )
+                        callback_declarations.append(var_declaration)
+                        
+                        # 关键修复：将数据引脚注册到 pin_ast_map 中
+                        # 创建对应的变量获取表达式
+                        var_expr = VariableGetExpression(
+                            variable_name=data_pin.pin_name,
+                            is_self_variable=False,  # 回调参数不是self变量
+                            source_location=self._create_source_location(node)
+                        )
+                        context.pin_ast_map[data_pin.pin_id] = var_expr
                     
                     # 创建CallbackBlock
                     callback_block = CallbackBlock(declarations=callback_declarations)
                     
                     # 在新作用域中处理回调体
                     with context.symbol_table.scoped():
-                        # 定义回调参数
+                        # 定义回调参数到符号表
                         for declaration in callback_declarations:
                             context.symbol_table.define(
                                 declaration.variable_name,

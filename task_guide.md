@@ -57,10 +57,18 @@
 3. Introduce generic macro handler registry for easy extension. 🕒 Pending
 4. Refactor duplicate macro code into utility helpers. 🕒 Pending
 
-## Milestone 6 – Asynchronous & Event Handling 🕒 Pending
-1. Finalise `LatentActionNode` AST semantics. 🕒 Pending
-2. Auto-infer callback parameter declarations. 🕒 Pending
-3. Improve formatter to output nested callbacks in readable blocks. 🕒 Pending
+## Milestone 6 – Asynchronous & Event Handling ✅ Completed
+1. Finalise `LatentActionNode` AST semantics. ✅ Completed
+2. Auto-infer callback parameter declarations. ✅ Completed
+3. Improve formatter to output nested callbacks in readable blocks. ✅ Completed
+
+**实现详情**：
+- 修复了 `_process_latent_ability_call` 方法，使其能够正确识别异步回调的数据输出引脚
+- 为每个回调数据引脚创建对应的 `VariableDeclaration` 并添加到 `CallbackBlock.declarations`
+- 扩展 `pin_ast_map` 机制，将回调数据引脚注册为 `VariableGetExpression`
+- 确保回调作用域中的数据输出被正确注册到符号表
+- 解决了 `UnknownFunction` 问题：`example_1.txt` 解析结果中 `DataHandle` 现在正确显示而非 `UnknownFunction`
+- 格式化器正确显示回调参数声明（如 `declare DataHandle: struct`）
 
 ## Milestone 7 – Parser Robustness & Debugging 🕒 Pending
 1. Implement graceful skip for malformed links instead of aborting parse. 🕒 Pending

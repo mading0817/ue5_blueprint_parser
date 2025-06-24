@@ -467,8 +467,8 @@ class MarkdownFormatter(ASTVisitor):
     def visit_latent_action_node(self, node: LatentActionNode) -> str:
         """访问延迟动作节点"""
         if node.call:
-            # 格式化异步函数调用
-            call_str = node.call.accept(self)
+            # 直接构建函数调用字符串，而不是通过 accept 方法（避免重复输出）
+            call_str = self._format_function_call_inline(node.call)
             self._add_line(f"await {call_str}")
         else:
             self._add_line("await <unknown_latent_action>()")
@@ -494,6 +494,29 @@ class MarkdownFormatter(ASTVisitor):
                 self.current_indent -= 1
         
         return ""
+    
+    def _format_function_call_inline(self, node: FunctionCallNode) -> str:
+        """内联格式化函数调用，返回字符串而不输出行"""
+        # 构建参数列表
+        args = []
+        for param_name, arg_expr in node.arguments:
+            if arg_expr:
+                arg_value = arg_expr.accept(self)
+                if param_name and param_name.lower() != "value":
+                    args.append(f"{param_name}: {arg_value}")
+                else:
+                    args.append(arg_value)
+        
+        args_str = ", ".join(args)
+        
+        # 构建函数调用
+        if node.target:
+            target_str = node.target.accept(self)
+            call_str = f"{target_str}.{node.function_name}({args_str})"
+        else:
+            call_str = f"{node.function_name}({args_str})"
+        
+        return call_str
     
 
     
