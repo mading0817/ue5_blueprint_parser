@@ -67,7 +67,6 @@ class GraphAnalyzer:
         processors = {
             "K2Node_Event": self._process_event_node,
             "K2Node_VariableSet": self._process_variable_set,
-            "K2Node_VariableGet": self._process_variable_get,
             "K2Node_CallFunction": self._process_call_function,
             "K2Node_IfThenElse": self._process_if_then_else,
             "K2Node_ExecutionSequence": self._process_execution_sequence,
@@ -311,19 +310,34 @@ class GraphAnalyzer:
         
         return assignment
     
-    def _process_variable_get(self, context: AnalysisContext, node: GraphNode) -> Optional[VariableGetExpression]:
+    def _build_property_access_expression(self, context: AnalysisContext, node: GraphNode) -> Expression:
         """
-        处理变量读取节点（作为表达式）
-        K2Node_VariableGet -> VariableGetExpression
+        构建属性访问表达式，支持递归解析嵌套访问链
+        K2Node_VariableGet -> VariableGetExpression 或 PropertyAccessNode
         """
-        # 提取变量名
+        # 提取当前节点的变量名
         var_name, is_self_context = self._extract_variable_reference(node)
         
-        return VariableGetExpression(
-            variable_name=var_name,
-            is_self_variable=is_self_context,
-            source_location=self._create_source_location(node)
-        )
+        # 检查是否有 self 引脚连接（表示这是一个属性访问）
+        self_pin = self._find_pin(node, "self", "input")
+        
+        if self_pin and self_pin.linked_to:
+            # 有 self 引脚连接，递归解析基础对象
+            base_expression = self._resolve_data_expression(context, self_pin)
+            
+            # 创建属性访问节点
+            return PropertyAccessNode(
+                target=base_expression,
+                property_name=var_name,
+                source_location=self._create_source_location(node)
+            )
+        else:
+            # 没有 self 引脚连接，这是一个顶级变量
+            return VariableGetExpression(
+                variable_name=var_name,
+                is_self_variable=is_self_context,
+                source_location=self._create_source_location(node)
+            )
     
     def _process_call_function(self, context: AnalysisContext, node: GraphNode) -> Optional[ASTNode]:
         """
@@ -1300,9 +1314,9 @@ class GraphAnalyzer:
         """
         根据节点类型解析为表达式
         """
-        # K2Node_VariableGet - 变量获取
+        # K2Node_VariableGet - 变量获取（使用新的递归解析）
         if 'K2Node_VariableGet' in node.class_type:
-            return self._process_variable_get(context, node)
+            return self._build_property_access_expression(context, node)
         
         # K2Node_Knot - 连接节点（透传）
         elif 'K2Node_Knot' in node.class_type:
