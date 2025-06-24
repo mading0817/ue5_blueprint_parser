@@ -227,17 +227,7 @@ class CastExpression(Expression):
         return visitor.visit_cast_expression(self)
 
 
-@dataclass
-class MemberAccessExpression(Expression):
-    """
-    成员访问表达式
-    例如: Player.Health, Vector.X
-    """
-    object_expression: Optional[Expression] = None
-    member_name: str = ""
-    
-    def accept(self, visitor):
-        return visitor.visit_member_access_expression(self)
+
 
 
 @dataclass
@@ -439,7 +429,7 @@ class LoopNode(Statement):
     # 循环体
     body: ExecutionBlock = field(default_factory=ExecutionBlock)
     
-    # 向后兼容的属性（已弃用，但保留以避免破坏现有代码）
+    # 简化的属性访问器
     @property
     def item_variable_name(self) -> Optional[str]:
         return self.item_declaration.variable_name if self.item_declaration else None
@@ -480,16 +470,7 @@ class LatentActionNode(Statement):
         return visitor.visit_latent_action_node(self)
 
 
-@dataclass
-class ReturnNode(Statement):
-    """
-    返回语句节点
-    用于函数返回值
-    """
-    return_values: List[Tuple[str, Expression]] = field(default_factory=list)  # [(output_name, value), ...]
-    
-    def accept(self, visitor):
-        return visitor.visit_return_node(self)
+
 
 
 # ============================================================================

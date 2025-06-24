@@ -1,7 +1,6 @@
 from flask import Flask, request, render_template, jsonify
-from parser.blueprint_parser import parse_ue_blueprint
 from parser.graph_parser import parse_blueprint_graph
-from parser.formatters import format_blueprint_to_markdown
+from parser.formatters import MarkdownFormatter, ConciseStrategy, VerboseStrategy
 
 # 初始化Flask应用
 app = Flask(__name__)
@@ -9,37 +8,8 @@ app = Flask(__name__)
 
 @app.route('/')
 def index():
-    """主页路由，显示解析表单"""
-    return render_template('index.html')
-
-
-@app.route('/parse', methods=['POST'])
-def parse_blueprint():
-    """解析蓝图Widget层级结构"""
-    blueprint_text = request.form.get('blueprint_text', '')
-    
-    if not blueprint_text.strip():
-        return render_template('index.html', 
-                             error="请输入蓝图文本内容。")
-    
-    try:
-        # 解析蓝图
-        blueprint = parse_ue_blueprint(blueprint_text)
-        
-        if not blueprint:
-            return render_template('index.html', 
-                                 error="无法解析蓝图文本。请检查输入格式。")
-        
-        # 格式化为Markdown
-        markdown_output = format_blueprint_to_markdown(blueprint)
-        
-        return render_template('index.html', 
-                             result=markdown_output,
-                             input_text=blueprint_text)
-    
-    except Exception as e:
-        return render_template('index.html', 
-                             error=f"解析过程中发生错误: {str(e)}")
+    """主页路由，直接重定向到Graph解析器"""
+    return render_template('graph.html')
 
 
 @app.route('/parse_graph', methods=['POST'])
@@ -81,7 +51,6 @@ def run_new_pipeline(graph_text: str, graph_name: str = "EventGraph", verbose: b
     :return: 格式化的Markdown输出
     """
     from parser.analyzer import GraphAnalyzer
-    from parser.formatters import MarkdownFormatter, VerboseStrategy, ConciseStrategy
     
     # 阶段1: 解析图结构
     graph = parse_blueprint_graph(graph_text, graph_name)
