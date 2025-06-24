@@ -34,6 +34,8 @@ The system is divided into four distinct layers:
 
 Based on extensive discussion, the refactored parser should adhere to the following output specification. The goal is to produce a developer-friendly, rule-driven summary that is verbatim to the blueprint's logic.
 
+### 1. EventGraph Output (for LLM Context)
+
 1.  **Scope & Structure**:
     *   Initially, only parse and output the `EventGraph`.
     *   Output format is a structured Markdown document.
@@ -56,4 +58,20 @@ Based on extensive discussion, the refactored parser should adhere to the follow
     *   **Node Position**: Node coordinates do not influence output order; only `exec` pins do.
     *   **Errors**: Parsing errors are silently ignored to keep the output clean.
     *   **External References**: No special annotations are added for cross-blueprint calls.
+
+### 2. Widget UI Tree Output (for Developer Overview)
+
+1.  **Scope & Structure**:
+    *   Parses and outputs the UI elements of a UserWidget blueprint.
+    *   Output format is a hierarchical Markdown list.
+
+2.  **Structure & Hierarchy**:
+    *   Nodes are represented as `- **WidgetName** (WidgetType)`.
+    *   Child widgets are indented to show parent-child relationships.
+    *   Optional display of important properties (e.g., `Text`, `Visibility`, `Size`) for UI elements.
+
+3.  **Ignored Elements**:
+    *   `Slot` objects are used to build hierarchy but not explicitly displayed.
+    *   Auxiliary objects like `WidgetTree` are handled internally but simplified in output.
+    *   Node coordinates do not influence output order; only logical parent-child relationships do.
 

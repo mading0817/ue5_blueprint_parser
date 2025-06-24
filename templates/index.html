@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>UE5 蓝图解析器</title>
+    <title>UE5 蓝图 Widget 解析器</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <style>
         .nav-tabs {
@@ -38,18 +38,26 @@
             <a href="/graph" class="nav-tab">Graph 解析</a>
         </div>
 
-        <h1>UE5 蓝图解析器</h1>
-        <p>将UE5蓝图文本转换为易读的层级结构</p>
+        <h1>UE5 蓝图 Widget 解析器</h1>
+        <p>将UE5蓝图的Widget UI结构转换为易读的层级树格式</p>
 
         <!-- 输入表单 -->
-        <form method="POST" action="/parse">
+        <form method="POST" action="/parse_widget">
             <div class="form-group">
-                <label for="blueprint_text">蓝图文本:</label>
-                <textarea id="blueprint_text" name="blueprint_text" rows="15" 
-                          placeholder="请粘贴从UE5蓝图编辑器复制的文本内容...">{{ input_text or '' }}</textarea>
+                <label for="widget_text">蓝图Widget文本:</label>
+                <textarea id="widget_text" name="widget_text" rows="15" 
+                          placeholder="请粘贴从UE5蓝图编辑器复制的Widget蓝图文本内容...">{{ input_text or '' }}</textarea>
             </div>
             
-            <button type="submit">解析蓝图</button>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" name="show_properties" value="true" 
+                           {% if request.form.get('show_properties') == 'true' %}checked{% endif %}>
+                    显示Widget属性信息 (显示重要的UI属性如文本、尺寸等)
+                </label>
+            </div>
+            
+            <button type="submit">解析Widget</button>
         </form>
 
         <!-- 错误信息显示 -->
@@ -63,8 +71,8 @@
         <!-- 结果显示 -->
         {% if result %}
         <div class="result">
-            <h3>解析结果:</h3>
-            <pre class="markdown-content">{{ result }}</pre>
+            <h3>Widget层级结构:</h3>
+            <pre><code>{{ result }}</code></pre>
             
             <!-- 复制按钮 -->
             <button onclick="copyToClipboard()" class="copy-btn">复制结果</button>
@@ -75,17 +83,36 @@
         <div class="instructions">
             <h3>使用说明:</h3>
             <ol>
-                <li>在UE5蓝图编辑器中，选择要解析的Widget或组件</li>
-                <li>使用Ctrl+A全选所有内容，然后Ctrl+C复制</li>
+                <li>在UE5蓝图编辑器中，打开要解析的UserWidget蓝图</li>
+                <li>切换到"Designer"视图，或查看蓝图的文本表示</li>
+                <li>使用Ctrl+A全选内容，然后Ctrl+C复制</li>
                 <li>将复制的文本粘贴到上面的文本框中</li>
-                <li>点击"解析蓝图"按钮获取层级结构</li>
+                <li>点击"解析Widget"按钮获取UI层级结构</li>
             </ol>
+            
+            <h4>支持的Widget类型:</h4>
+            <ul>
+                <li>基础容器 (CanvasPanel, VerticalBox, HorizontalBox)</li>
+                <li>UI控件 (Button, TextBlock, Image, EditableText)</li>
+                <li>布局控件 (Border, ScrollBox, Overlay)</li>
+                <li>输入控件 (Slider, CheckBox, ComboBox)</li>
+                <li>自定义Widget和所有UMG组件</li>
+            </ul>
+            
+            <h4>输出格式:</h4>
+            <p>解析器将生成一个层级缩进的Markdown列表，清晰显示Widget的父子关系：</p>
+            <pre><code>- **RootPanel** (CanvasPanel)
+  - **HeaderBorder** (Border)
+    - **TitleText** (TextBlock)
+  - **ContentArea** (VerticalBox)
+    - **Button1** (Button)
+    - **Button2** (Button)</code></pre>
         </div>
     </div>
 
     <script>
         function copyToClipboard() {
-            const resultText = document.querySelector('.result .markdown-content').innerText;
+            const resultText = document.querySelector('.result pre code').innerText;
             navigator.clipboard.writeText(resultText).then(function() {
                 const button = document.querySelector('.copy-btn');
                 const originalText = button.innerText;

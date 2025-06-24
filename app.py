@@ -8,8 +8,41 @@ app = Flask(__name__)
 
 @app.route('/')
 def index():
-    """主页路由，直接重定向到Graph解析器"""
-    return render_template('graph.html')
+    """主页路由，指向Widget解析器"""
+    return render_template('index.html')
+
+
+@app.route('/widget')
+def widget_page():
+    """Widget解析页面"""
+    return render_template('index.html')
+
+
+@app.route('/parse_widget', methods=['POST'])
+def parse_widget():
+    """解析蓝图Widget UI结构并生成层级树"""
+    widget_text = request.form.get('widget_text', '')
+    show_properties = request.form.get('show_properties', '').lower() == 'true'
+    
+    if not widget_text.strip():
+        return render_template('index.html', 
+                             error="请输入Widget蓝图文本内容。")
+    
+    try:
+        # 使用Widget解析管道
+        markdown_output = run_widget_pipeline(widget_text, show_properties)
+        
+        if not markdown_output or "失败" in markdown_output:
+            return render_template('index.html', 
+                                 error=f"解析失败: {markdown_output}")
+        
+        return render_template('index.html', 
+                             result=markdown_output,
+                             input_text=widget_text)
+    
+    except Exception as e:
+        return render_template('index.html', 
+                             error=f"解析Widget过程中发生错误: {str(e)}")
 
 
 @app.route('/parse_graph', methods=['POST'])
@@ -78,6 +111,33 @@ def run_new_pipeline(graph_text: str, graph_name: str = "EventGraph", verbose: b
         return "格式化输出失败：无法生成Markdown输出"
     
     return '\n\n---\n\n'.join(results)
+
+
+def run_widget_pipeline(widget_text: str, show_properties: bool = False) -> str:
+    """
+    运行Widget解析管道：blueprint_parser -> WidgetTreeFormatter
+    用于解析UE5 UserWidget的UI层级结构
+    
+    :param widget_text: Widget蓝图文本
+    :param show_properties: 是否显示Widget属性
+    :return: 格式化的Markdown树状结构输出
+    """
+    from parser.blueprint_parser import parse_ue_blueprint
+    from parser.formatters import WidgetTreeFormatter
+    
+    # 阶段1: 解析Widget蓝图结构
+    blueprint = parse_ue_blueprint(widget_text)
+    if not blueprint:
+        return "解析Widget蓝图失败：无法识别蓝图文本格式或文本为空"
+    
+    # 阶段2: 格式化为树状结构
+    formatter = WidgetTreeFormatter(show_properties=show_properties)
+    result = formatter.format_blueprint(blueprint)
+    
+    if not result or result.strip() == "":
+        return "格式化输出失败：无法生成Widget树状结构"
+    
+    return result
 
 
 @app.route('/graph')

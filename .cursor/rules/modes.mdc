@@ -1,7 +1,7 @@
 ---
 description: 
 globs: 
-alwaysApply: false
+alwaysApply: true
 ---
 RIPER MODES: STRICT OPERATIONAL PROTOCOL
 Every response must start with [MODE: MODE_NAME]. No exceptions.

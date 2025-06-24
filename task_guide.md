@@ -44,43 +44,44 @@
 - 在 `AnalysisContext` 中添加 `pending_continuation_pin` 字段，规范化状态管理
 - 测试验证：example_1.txt 现在正确解析出所有3个串联的 ForEachLoop，解决了执行流不完整的重大问题
 
-## Milestone 4 – Additional Standard Macros 🕒 Pending
+## Milestone 4 – Widget UI Parsing & Integration ✅ Completed
+1. Create `WidgetTreeFormatter` to output hierarchical Markdown for UI elements. ✅ Completed
+2. Implement `run_widget_pipeline` in `app.py` for Widget parsing. ✅ Completed
+3. Develop dedicated `index.html` template for Widget UI parsing. ✅ Completed
+4. Integrate Widget parsing routes and update existing navigation in `app.py` and templates. ✅ Completed
+5. Verify end-to-end functionality of Widget UI parsing. ✅ Completed
+
+## Milestone 5 – Advanced Control Flow & Macros 🕒 Pending
 1. Support `ForLoopWithBreak` macro (LoopCounter, ArrayIndex). 🕒 Pending
 2. Support `WhileLoop` macro with `LoopConditionResult`. 🕒 Pending
 3. Introduce generic macro handler registry for easy extension. 🕒 Pending
 4. Refactor duplicate macro code into utility helpers. 🕒 Pending
 
-## Milestone 5 – Latent Actions & Callbacks 🕒 Pending
+## Milestone 6 – Asynchronous & Event Handling 🕒 Pending
 1. Finalise `LatentActionNode` AST semantics. 🕒 Pending
 2. Auto-infer callback parameter declarations. 🕒 Pending
 3. Improve formatter to output nested callbacks in readable blocks. 🕒 Pending
 
-## Milestone 6 – Error Recovery & Diagnostics 🕒 Pending
+## Milestone 7 – Parser Robustness & Debugging 🕒 Pending
 1. Implement graceful skip for malformed links instead of aborting parse. 🕒 Pending
 2. Add diagnostic messages with source location for unresolved pins. 🕒 Pending
 3. Provide "debug mode" formatter for verbose troubleshooting. 🕒 Pending
+4. Implement basic error reporting in web UI. 🕒 Pending
 
-## Milestone 7 – Performance Optimisation 🕒 Pending
+## Milestone 8 – Performance & Optimization 🕒 Pending
 1. Memoize heavy graph traversals; profile hot-spots. 🕒 Pending
 2. Implement incremental parse cache keyed by blueprint hash. 🕒 Pending
 3. Parallelise graph parsing where safe. 🕒 Pending
 
-## Milestone 8 – Output Formats Expansion 🕒 Pending
-1. JSON serialiser for AST (machine-readable). 🕒 Pending
-2. Mermaid sequence/flow diagrams (graphical). 🕒 Pending
-3. Switchable verbosity strategies in Markdown formatter. 🕒 Pending
+## Milestone 9 – Diverse Output Formats 🕒 Pending
+1. Implement JSON serialiser for AST (machine-readable). 🕒 Pending
+2. Implement Mermaid sequence/flow diagrams (graphical). 🕒 Pending
+3. Enhance existing Markdown formatter for more options (e.g., specific section filtering). 🕒 Pending
+4. Integrate Mermaid diagram generation into the web UI for live preview. 🕒 Pending
 
-## Milestone 9 – Web UI Enhancements 🕒 Pending
+## Milestone 10 – Web UI Polish & Deployment 🕒 Pending
 1. Improve Flask templates for dark/light themes. 🕒 Pending
 2. Add file upload & drag-drop support. 🕒 Pending
-3. Integrate live preview of Mermaid diagrams. 🕒 Pending
-
-## Milestone 10 – Integration & CI/CD 🕒 Pending
-1. GitHub Action for test suite & lint. 🕒 Pending
-2. Automatic deployment to Vercel on push. 🕒 Pending
-3. Release versioning & changelog generator. 🕒 Pending
-
-## Milestone 11 – Documentation & Polishing 🕒 Pending
-1. Complete user/developer docs with examples. 🕒 Pending
-2. Record architecture decision log (ADR) entries. 🕒 Pending
-3. Prepare presentation & demo assets. 🕒 Pending
+3. Implement GitHub Action for test suite & lint. 🕒 Pending
+4. Automatic deployment to Vercel on push. 🕒 Pending
+5. Complete user/developer docs with examples. 🕒 Pending
