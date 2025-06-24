@@ -100,6 +100,9 @@ def run_new_pipeline(graph_text: str, graph_name: str = "EventGraph", verbose: b
     strategy = VerboseStrategy() if verbose else ConciseStrategy()
     formatter = MarkdownFormatter(strategy)
     
+    # 添加蓝图标题
+    blueprint_title = f"# {graph.graph_name}"  # graph_name现在包含了蓝图名称和图类型
+    
     # 格式化所有AST节点
     results = []
     for ast_node in ast_nodes:
@@ -110,7 +113,9 @@ def run_new_pipeline(graph_text: str, graph_name: str = "EventGraph", verbose: b
     if not results:
         return "格式化输出失败：无法生成Markdown输出"
     
-    return '\n\n---\n\n'.join(results)
+    # 组合蓝图标题和内容
+    final_output = blueprint_title + '\n\n' + '\n\n---\n\n'.join(results)
+    return final_output
 
 
 def run_widget_pipeline(widget_text: str, show_properties: bool = False) -> str:

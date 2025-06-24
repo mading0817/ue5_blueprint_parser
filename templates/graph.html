@@ -44,13 +44,6 @@
         <!-- 输入表单 -->
         <form method="POST" action="/parse_graph">
             <div class="form-group">
-                <label for="graph_name">Graph名称:</label>
-                <input type="text" id="graph_name" name="graph_name" 
-                       value="{{ graph_name or 'EventGraph' }}" 
-                       placeholder="例如: EventGraph, ConstructionScript">
-            </div>
-            
-            <div class="form-group">
                 <label for="graph_text">蓝图Graph文本:</label>
                 <textarea id="graph_text" name="graph_text" rows="15" 
                           placeholder="请粘贴从UE5蓝图编辑器复制的Graph文本内容...">{{ input_text or '' }}</textarea>
@@ -60,7 +53,7 @@
                 <label>
                     <input type="checkbox" name="verbose" value="true" 
                            {% if request.form.get('verbose') == 'true' %}checked{% endif %}>
-                    使用详细格式 (显示类型信息和更多缩进)
+                    显示类型信息和更多缩进
                 </label>
             </div>
             
@@ -85,28 +78,6 @@
             <button onclick="copyToClipboard()" class="copy-btn">复制伪代码</button>
         </div>
         {% endif %}
-
-        <!-- 使用说明 -->
-        <div class="instructions">
-            <h3>使用说明:</h3>
-            <ol>
-                <li>在UE5蓝图编辑器中，选择要解析的Graph（如EventGraph）</li>
-                <li>使用Ctrl+A全选所有节点，然后Ctrl+C复制</li>
-                <li>将复制的文本粘贴到上面的文本框中</li>
-                <li>点击"解析Graph"按钮获取伪代码</li>
-            </ol>
-            
-            <h4>支持的节点类型:</h4>
-            <ul>
-                <li>事件节点 (K2Node_Event)</li>
-                <li>函数调用 (K2Node_CallFunction)</li>
-                <li>变量操作 (K2Node_VariableGet/Set)</li>
-                <li>动态转换 (K2Node_DynamicCast)</li>
-                <li>执行序列 (K2Node_ExecutionSequence)</li>
-                <li>宏调用 (K2Node_MacroInstance，如ForEachLoop)</li>
-                <li>注释节点 (EdGraphNode_Comment)</li>
-            </ul>
-        </div>
     </div>
 
     <script>

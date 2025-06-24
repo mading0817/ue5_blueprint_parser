@@ -247,7 +247,13 @@ def _parse_inline_pin(line: str) -> Optional[GraphPin]:
     default_match = re.search(r'DefaultValue="([^"]*)"', line)
     if default_match:
         default_value = default_match.group(1)
-    
+
+    # 提取DefaultObject（通常用于对象引用）
+    default_object_match = re.search(r'DefaultObject="([^"]*)"', line)
+    if default_object_match:
+        # 优先使用DefaultObject作为值
+        default_value = default_object_match.group(1)
+
     # 创建引脚对象
     pin = GraphPin(
         pin_id=pin_id,
@@ -397,6 +403,12 @@ def parse_blueprint_graph(graph_text: str, graph_name: str = "EventGraph") -> Op
     if not graph_text or not graph_text.strip():
         return None
     
+    # 提取蓝图名称 - 新增功能
+    blueprint_name = "UnknownBlueprint"
+    name_match = re.search(r"/Game/.*(?:/|')(?P<asset_name>[^/.]+)\.", graph_text)
+    if name_match:
+        blueprint_name = name_match.group("asset_name")
+    
     # 解析所有节点
     nodes = parse_graph_nodes(graph_text)
     if not nodes:
@@ -408,9 +420,9 @@ def parse_blueprint_graph(graph_text: str, graph_name: str = "EventGraph") -> Op
     # 找到入口节点
     entry_nodes = find_entry_nodes(nodes)
     
-    # 创建BlueprintGraph对象
+    # 创建BlueprintGraph对象，使用提取的蓝图名称
     blueprint_graph = BlueprintGraph(
-        graph_name=graph_name,
+        graph_name=f"{blueprint_name} {graph_name}",  # 组合蓝图名称和图类型
         nodes=nodes_dict,
         entry_nodes=entry_nodes
     )

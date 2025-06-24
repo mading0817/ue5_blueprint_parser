@@ -217,19 +217,38 @@ class MarkdownFormatter(ASTVisitor):
     def _get_indent(self, extra_indent: int = 0) -> str:
         """获取当前缩进字符串"""
         return self.strategy.get_indent_string() * (self.current_indent + extra_indent)
-    
+
+    def _format_value(self, value: Any) -> str:
+        """
+        通用值格式化辅助函数
+        - 格式化None, bool
+        - 格式化UE资源路径为简洁名称
+        - 格式化普通字符串并加引号
+        """
+        if value is None:
+            return "None"
+        if isinstance(value, bool):
+            return str(value).lower()
+        if not isinstance(value, str):
+            return str(value)
+
+        # 检查是否是UE资源路径
+        # e.g., /Game/BPs/UI/WBP_MyWidget.WBP_MyWidget_C
+        if value.startswith('/Game/') and '.' in value and value.endswith('_C'):
+            # 提取文件名部分并移除_C后缀
+            base_name = value.split('.')[-1]
+            return base_name.removesuffix('_C')
+
+        # 否则视为普通字符串
+        return f'"{value}"'
+
     # ========================================================================
     # 表达式节点访问方法
     # ========================================================================
     
     def visit_literal_expression(self, node: LiteralExpression) -> str:
         """访问字面量表达式"""
-        if node.literal_type == "string":
-            return f'"{node.value}"'
-        elif node.literal_type == "bool":
-            return str(node.value).lower()
-        else:
-            return str(node.value)
+        return self._format_value(node.value)
     
     def visit_variable_get_expression(self, node: VariableGetExpression) -> str:
         """访问变量获取表达式"""
@@ -306,9 +325,17 @@ class MarkdownFormatter(ASTVisitor):
                     param_parts.append(param_name)
             params_str = f"({', '.join(param_parts)})"
         
-        # 添加事件声明
-        self._add_line(f"#### Event: {node.event_name}{params_str}")
-        self._add_line("")
+        # 添加事件声明 - 现在使用简化格式，不再显示单独的事件标题
+        # 因为我们会在外层添加统一的蓝图标题
+        if hasattr(self, '_blueprint_title_added') and not self._blueprint_title_added:
+            # 如果还没有添加蓝图标题，先添加
+            self._add_line(f"#### Event: {node.event_name}{params_str}")
+            self._add_line("")
+            self._blueprint_title_added = True
+        else:
+            # 如果已经有蓝图标题，只添加事件名称
+            self._add_line(f"#### Event: {node.event_name}{params_str}")
+            self._add_line("")
         
         # 处理事件体
         if node.body and node.body.statements:
@@ -605,8 +632,8 @@ class WidgetTreeFormatter:
         """
         self.output_lines = []
         
-        # 添加蓝图标题
-        self.output_lines.append(f"# {blueprint.name}")
+        # 添加蓝图标题，包含Hierarchy后缀
+        self.output_lines.append(f"# {blueprint.name} Hierarchy")
         self.output_lines.append("")
         
         if not blueprint.root_nodes:

@@ -53,7 +53,7 @@
                 <label>
                     <input type="checkbox" name="show_properties" value="true" 
                            {% if request.form.get('show_properties') == 'true' %}checked{% endif %}>
-                    显示Widget属性信息 (显示重要的UI属性如文本、尺寸等)
+                    显示Widget属性信息
                 </label>
             </div>
             
@@ -78,36 +78,6 @@
             <button onclick="copyToClipboard()" class="copy-btn">复制结果</button>
         </div>
         {% endif %}
-
-        <!-- 使用说明 -->
-        <div class="instructions">
-            <h3>使用说明:</h3>
-            <ol>
-                <li>在UE5蓝图编辑器中，打开要解析的UserWidget蓝图</li>
-                <li>切换到"Designer"视图，或查看蓝图的文本表示</li>
-                <li>使用Ctrl+A全选内容，然后Ctrl+C复制</li>
-                <li>将复制的文本粘贴到上面的文本框中</li>
-                <li>点击"解析Widget"按钮获取UI层级结构</li>
-            </ol>
-            
-            <h4>支持的Widget类型:</h4>
-            <ul>
-                <li>基础容器 (CanvasPanel, VerticalBox, HorizontalBox)</li>
-                <li>UI控件 (Button, TextBlock, Image, EditableText)</li>
-                <li>布局控件 (Border, ScrollBox, Overlay)</li>
-                <li>输入控件 (Slider, CheckBox, ComboBox)</li>
-                <li>自定义Widget和所有UMG组件</li>
-            </ul>
-            
-            <h4>输出格式:</h4>
-            <p>解析器将生成一个层级缩进的Markdown列表，清晰显示Widget的父子关系：</p>
-            <pre><code>- **RootPanel** (CanvasPanel)
-  - **HeaderBorder** (Border)
-    - **TitleText** (TextBlock)
-  - **ContentArea** (VerticalBox)
-    - **Button1** (Button)
-    - **Button2** (Button)</code></pre>
-        </div>
     </div>
 
     <script>
