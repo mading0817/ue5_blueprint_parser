@@ -1,48 +1,50 @@
-# Refactoring Guide: UE5 Blueprint Graph Parser
+# UE5 Blueprint Parser: Refactoring Guide
 
-This document outlines the architectural principles for refactoring the UE5 Blueprint Graph Parser. The primary goal is to create a robust, extensible, and accurate system for converting `.uasset` blueprint text into a human-readable, logical pseudo-code format, primarily for consumption by Large Language Models (LLMs) and developers.
+This document outlines the architectural principles for the UE5 Blueprint Parser. The primary goal is to create a robust, extensible, and high-fidelity system for converting `.uasset` blueprint text into a human-readable, logical pseudo-code format.
 
-The system is architected as a three-stage pipeline, inspired by modern compiler front-end design.
+The system is architected as a **three-stage pipeline**, inspired by modern compiler design.
+
+## Guiding Philosophy: Fidelity First
+
+Based on extensive analysis, the parser's core philosophy has been refined to prioritize **high fidelity** over semantic interpretation. The parser's primary responsibility is to be a "recorder" that accurately mirrors the structure and information present in the source blueprint, not an "interpreter" that beautifies or transforms the logic.
+
+This means:
+- **No Automatic Simplification**: The parser will **not** automatically convert low-level function calls into high-level operators (e.g., `Not_PreBool(EqualEqual_ObjectObject(...))` will be preserved, not converted to `!=`). This ensures that the raw information from the blueprint is never lost.
+- **No Automatic Expansion**: The parser will **not** automatically expand macros. A macro node in the blueprint will be represented as a macro call in the output, preserving the original level of abstraction.
+- **Optional Transformations**: Any "beautification" or logic expansion is delegated to optional, post-processing transformation passes, keeping the core parser pure and faithful to the source.
 
 ## Core Architecture: A Three-Stage Pipeline
 
 ### 1. Stage One: Graph Construction
 
-*   **Module**: `parser/graph_parser.py`
-*   **Input**: Raw Blueprint graph text.
-*   **Output**: A `BlueprintGraph` object.
-*   **Responsibility**: This stage is responsible for a high-fidelity, lossless conversion of the raw text into a foundational graph data structure. It parses all nodes, pins, and their explicit `LinkedTo` connections without interpreting their logical meaning. The output is a complete, raw representation of the blueprint's structure.
+- **Module**: `parser/graph_parser.py`
+- **Input**: Raw Blueprint graph text.
+- **Output**: A `BlueprintGraph` object.
+- **Responsibility**: This stage performs a lossless conversion of the raw text into a foundational graph data structure (`BlueprintGraph`). It parses all nodes, pins, and their explicit `LinkedTo` connections without interpreting their logical meaning.
 
-### 2. Stage Two: Logical AST Generation (New Architecture)
+### 2. Stage Two: High-Fidelity AST Generation
 
-*   **Module**: `parser/analyzer.py` (with `parser/symbol_table.py`)
-*   **Input**: The `BlueprintGraph` object from Stage One.
-*   **Output**: A **Semantically-Rich, Context-Aware, Logical Abstract Syntax Tree (AST)**.
-*   **Responsibility**: This stage is the heart of the parser. It has been redesigned to overcome the limitations of the previous model, which led to systemic errors like `UnknownFunction` and `UnknownDelegate`. The new architecture is founded on a **"Unified Resolution Model"**.
+- **Module**: `parser/analyzer.py`
+- **Input**: The `BlueprintGraph` object from Stage One.
+- **Output**: A **structurally accurate Abstract Syntax Tree (AST)**.
+- **Responsibility**: This is the heart of the parser. It traverses the `BlueprintGraph` to produce an AST that is a direct logical equivalent of the blueprint's structure.
 
-#### Core Principles of the New Architecture:
+#### Key Architectural Features:
 
-1.  **Unified Resolution Model**:
-    *   The previous separation of `_follow_execution_flow` and `_resolve_data_expression` was a critical flaw, as it failed to model the intertwined nature of execution and data flow in Blueprints.
-    *   **Solution**: We've introduced a single, higher-order resolution function: `resolve(pin) -> ResolutionResult`. This function returns both the sequence of statements triggered by an execution pin and the data value expression produced by a data pin. This elegantly models how a single Blueprint node can both perform an action and yield a result.
+1.  **Execution-Flow-Driven Traversal**:
+    *   The parser's `analyzer` operates by strictly following the execution pins (`exec`) from an entry point (e.g., an Event node). This ensures the resulting AST's control flow (sequences, branches, loops) perfectly matches the blueprint's execution order.
 
-2.  **Context-Aware AST with Bidirectional Linking**:
-    *   Previously, the AST was a simple tree, and the Symbol Table was an external tool. This made it difficult to understand a node's context.
-    *   **Solution**: The Symbol Table is now a tree of `Scope` objects, each corresponding to a lexical scope (like a loop body or an event callback). Crucially, every `ASTNode` now holds a direct reference to the `Scope` it belongs to, and each `Scope` references the `ASTNode` that created it. This creates a self-contained, context-aware AST where any node's full environment can be easily introspected.
+2.  **Context-Aware Structural Handlers**:
+    *   As the traverser encounters nodes, it uses specific handlers to build the AST. The key is how it handles complex structures:
+    *   **Asynchronous Nodes (`LatentActionNode`)**: Instead of flattening the logic, the parser creates a dedicated `ASTAwaitBlock` (represented by `LatentActionNode`). This block contains the initial async call and a collection of **callback blocks**. Each callback block (e.g., `on ValidData:`, `on Cancelled:`) contains the complete sub-graph of logic that executes when that specific callback delegate is fired. This preserves the essential asynchronous structure.
 
-3.  **Enhanced AST Semantics for Complex Patterns**:
-    *   To address the root cause of parsing failures, the AST (`parser/models.py`) has been upgraded to express complex Blueprint patterns natively:
-        *   **`PropertyAccessNode`**: Enables the representation of nested property access chains (e.g., `Variable.Member.SubMember`), which is critical for correctly parsing component and object interactions.
-        *   **`AssignmentNode.target: Expression`**: The left-hand side of an assignment is no longer a simple string but a full expression. This allows for complex assignments like `MyButton.OnClicked = MyEvent`, which was previously impossible.
-        *   **`EventReferenceExpression`**: A dedicated AST node to represent a reference to a bindable event, distinguishing it semantically from a function call.
-        *   **`LoopVariableExpression`**: NEW   A first-class node used to represent iterator variables generated by loop-style macros (e.g. `ArrayElement`, `ArrayIndex`, `LoopCounter`). This removes the need for fragile string matching and guarantees that any macro-defined variable is resolved in the AST phase instead of degrading to `UnknownFunction` placeholders.
+3.  **Generic Fallback Handler for Extensibility**:
+    *   To ensure robustness and support for custom or unknown nodes, the analyzer includes a **Generic Fallback Handler**.
+    *   If the parser encounters a node type it doesn't have a specific handler for (like a custom `K2Node_Message`), it does not fail. Instead, the fallback handler inspects the node's pin structure. If the pins match a standard pattern (e.g., `execute` in, `then` out), it infers the node to be a function call and creates a corresponding `ASTFunctionCall` node. This allows the parser to gracefully handle new or project-specific nodes without modification.
 
-This new architecture replaces the previous, fragile approach, ensuring that the parsing process is robust, maintainable, and correctly interprets the complex interplay of execution, data flow, scope, and bindings within UE Blueprints.
+### 3. Stage Three: AST Rendering
 
-### 3. Stage Three: AST Formatting
-
-*   **Module**: `parser/formatters.py` (requires updates)
-*   **Input**: The new, semantically-rich Logical AST from Stage Two.
-*   **Output**: A formatted string (e.g., Markdown pseudo-code).
-*   **Responsibility**: This stage translates the logical AST into a final textual representation. It must be updated to support the new AST nodes (`PropertyAccessNode`, `EventReferenceExpression`, etc.) to correctly render the new, more complex structures.
-    *   **Visitor Pattern**: Formatters will continue to be implemented as visitors that traverse the AST. This decoupling of logic from presentation remains a core design principle.
+- **Module**: `parser/formatters.py`
+- **Input**: An AST (typically the high-fidelity raw AST from Stage Two).
+- **Output**: A formatted string (e.g., Markdown pseudo-code).
+- **Responsibility**: This stage is a straightforward "printer" that traverses the AST and renders it into a human-readable format. It correctly formats all structural nodes, including the nested blocks for asynchronous callbacks, to produce a clear and accurate representation of the blueprint's logic.

@@ -68,7 +68,10 @@ Permitted: Reading, searching, define file paths, functions, detailed changes.
 Forbidden: Editing, coding, suggestions.
 Strict rules:
 	- Always READ the relevant README.txt and TASK_GUIDE.txt files before PLAN.
-	- Create the plan accurately and precisely based on the prior conversations.
+	- Create the plans accurately and precisely based on the prior conversations.
+	- New plans may render some legacy code obsolete. 
+		- Find the legacy code;
+		- Plan to use the standard deprecation mechanism of the user’s programming language to mark these segments.
 	- Use "!WARNING!" to warn user any [unclear, unexecutable, misunderstanding] instructions in [MODE: INNOVATE].
 	- Convert the entire plan into a numbered, sequential CHECKLIST with each atomic action as a separate item.
 	- Clearly mark which plans need to be completed by the user and which ones are not.
@@ -133,12 +136,12 @@ Forbidden: Editing, coding, suggestions, planning.
 Strict rules:
 	- Read all conversations and contexts with the user.
 	- Define conversations background.
-		- What is the problem.
-		- why is the problem.
-		- where is the problem.
+		- What are the problems/arguments in the overall chats.
+		- why are the problems/arguments in the overall chats.
+		- where are the problems/arguments in the overall chats.
 	- Identify primary concerns with the user.
 	- MUST Provide background information with:
 		- tech stacks.
 		- [Defination, structures, descriptions] of relevant code functions or variables.
 	- What's been done? What's not been done? What needs to be done next?
-	- Generate a complete and structured summary of all user conversations.
+	- Generate a complete and structured report of all user conversations.
