@@ -356,42 +356,38 @@ def _establish_connection(source_node: GraphNode, source_pin: GraphPin, target_n
 
 def find_entry_nodes(nodes: List[GraphNode]) -> List[GraphNode]:
     """
-    识别图的入口节点
-    包括所有事件节点和自定义事件节点
+    识别图的入口节点 - 基于行为特征的动态识别
+    入口节点必须满足：
+    1. 有至少一个输出执行引脚 (output exec pin)
+    2. 所有输入执行引脚都未被连接 (no connected input exec pins)
     """
     entry_nodes = []
-    potential_entries = []
     
     for node in nodes:
-        # 优先级 1: 事件节点和自定义事件节点 (都是独立的入口点)
-        if 'K2Node_Event' in node.class_type or 'K2Node_CustomEvent' in node.class_type:
-            entry_nodes.append(node)
+        # 检查是否有输出执行引脚
+        has_output_exec = False
+        for pin in node.pins:
+            if pin.pin_type == "exec" and pin.direction == "output":
+                has_output_exec = True
+                break
         
-        # 优先级 2: 其他潜在入口节点
-        elif any(entry_type in node.class_type for entry_type in [
-            'K2Node_FunctionEntry', 
-            'K2Node_CallFunction',
-            'K2Node_MacroInstance'
-        ]):
-            potential_entries.append(node)
+        # 如果没有输出执行引脚，跳过
+        if not has_output_exec:
+            continue
+        
+        # 检查是否所有输入执行引脚都未被连接
+        has_connected_input_exec = False
+        for pin in node.pins:
+            if pin.pin_type == "exec" and pin.direction == "input" and pin.linked_to:
+                has_connected_input_exec = True
+                break
+        
+        # 如果没有被连接的输入执行引脚，则为入口节点
+        if not has_connected_input_exec:
+            entry_nodes.append(node)
     
-    # 如果没有找到事件节点，使用备选入口
-    if not entry_nodes and potential_entries:
-        # 进一步筛选: 查找没有执行输入连接的节点
-        for node in potential_entries:
-            has_exec_input = False
-            for pin in node.pins:
-                if pin.pin_type == "exec" and pin.direction == "input" and pin.linked_to:
-                    has_exec_input = True
-                    break
-            
-            # 没有执行输入连接的节点可能是入口点
-            if not has_exec_input:
-                entry_nodes.append(node)
-    
-    # 如果仍然没有找到入口，返回所有潜在入口
-    if not entry_nodes and potential_entries:
-        entry_nodes = potential_entries[:1]  # 至少返回一个
+    # 按NodePosY进行确定性排序，确保输出顺序稳定
+    entry_nodes.sort(key=lambda node: node.properties.get("NodePosY", 0))
     
     return entry_nodes
 

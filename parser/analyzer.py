@@ -65,7 +65,9 @@ class GraphAnalyzer:
         """注册默认的节点处理器"""
         # 使用简化的注册方式
         processors = {
-            "K2Node_Event": self._process_event_node,
+            "K2Node_Event": self._process_generic_event_node,
+            "K2Node_CustomEvent": self._process_generic_event_node,
+            "K2Node_ComponentBoundEvent": self._process_generic_event_node,
             "K2Node_VariableSet": self._process_variable_set,
             "K2Node_CallFunction": self._process_call_function,
             "K2Node_IfThenElse": self._process_if_then_else,
@@ -73,7 +75,6 @@ class GraphAnalyzer:
             "K2Node_MacroInstance": self._process_macro_instance,
             "K2Node_LatentAbilityCall": self._process_latent_ability_call,
             "K2Node_Knot": self._process_knot_node,
-            "K2Node_CustomEvent": self._process_custom_event,
             "K2Node_DynamicCast": self._process_dynamic_cast,
             "K2Node_AssignDelegate": self._process_assign_delegate,
             "K2Node_CallArrayFunction": self._process_call_array_function,
@@ -195,33 +196,27 @@ class GraphAnalyzer:
     # 节点处理器实现
     # ========================================================================
     
-    def _process_event_node(self, context: AnalysisContext, node: GraphNode) -> Optional[EventNode]:
+    def _process_generic_event_node(self, context: AnalysisContext, node: GraphNode) -> Optional[EventNode]:
         """
-        处理事件节点
-        K2Node_Event -> EventNode
+        通用事件节点处理器 - 支持多种事件节点类型
+        支持: K2Node_Event, K2Node_CustomEvent, K2Node_ComponentBoundEvent
         """
-        # 提取事件名称
-        event_ref = node.properties.get("EventReference", "")
-        if isinstance(event_ref, dict):
-            event_name = event_ref.get("MemberName", node.node_name)
-        elif isinstance(event_ref, str) and "MemberName=" in event_ref:
-            # 解析字符串格式的EventReference
-            import re
-            match = re.search(r'MemberName="([^"]+)"', event_ref)
-            event_name = match.group(1) if match else node.node_name
-        else:
-            event_name = node.node_name
+        # 根据节点类型提取事件名称
+        event_name = self._extract_event_name(node)
+        
+        # 自动提取事件参数
+        parameters = self._extract_event_parameters(node)
         
         # 创建事件节点
         event_node = EventNode(
             event_name=event_name,
-            parameters=[],  # 事件参数解析暂未实现
+            parameters=parameters,
             body=ExecutionBlock(),
             source_location=self._create_source_location(node)
         )
         
-        # 跟随执行流构建事件体
-        exec_pin = self._find_pin(node, "then", "output")
+        # 查找执行输出引脚并跟随执行流
+        exec_pin = self._find_execution_output_pin(node)
         if exec_pin:
             self._follow_execution_flow(context, exec_pin, event_node.body.statements)
         
@@ -230,6 +225,86 @@ class GraphAnalyzer:
             event_node.body.statements = context.scope_prelude + event_node.body.statements
         
         return event_node
+    
+    def _extract_event_name(self, node: GraphNode) -> str:
+        """
+        根据节点类型提取事件名称
+        """
+        if 'K2Node_Event' in node.class_type:
+            # 标准事件节点：从EventReference.MemberName提取
+            event_ref = node.properties.get("EventReference", "")
+            if isinstance(event_ref, dict):
+                return event_ref.get("MemberName", node.node_name)
+            elif isinstance(event_ref, str) and "MemberName=" in event_ref:
+                import re
+                match = re.search(r'MemberName="([^"]+)"', event_ref)
+                return match.group(1) if match else node.node_name
+            else:
+                return node.node_name
+                
+        elif 'K2Node_CustomEvent' in node.class_type:
+            # 自定义事件节点：从CustomFunctionName提取
+            custom_function_name = node.properties.get("CustomFunctionName", "")
+            if isinstance(custom_function_name, str):
+                event_name = custom_function_name.strip('"') if custom_function_name else node.node_name
+            else:
+                event_name = node.node_name
+            
+            # 如果事件名称为空，使用节点名称
+            if not event_name or event_name == "K2Node_CustomEvent":
+                event_name = "CustomEvent"
+            return event_name
+            
+        elif 'K2Node_ComponentBoundEvent' in node.class_type:
+            # 组件绑定事件：组合ComponentPropertyName.DelegatePropertyName
+            component_name = node.properties.get("ComponentPropertyName", "")
+            delegate_name = node.properties.get("DelegatePropertyName", "")
+            
+            if component_name and delegate_name:
+                return f"{component_name}.{delegate_name}"
+            elif delegate_name:
+                return delegate_name
+            else:
+                return node.node_name
+        
+        # 默认情况
+        return node.node_name
+    
+    def _extract_event_parameters(self, node: GraphNode) -> List[Tuple[str, str]]:
+        """
+        自动提取事件参数 - 从非执行的输出引脚中提取
+        """
+        parameters = []
+        for pin in node.pins:
+            if pin.direction == "output" and pin.pin_type != "exec":
+                # 跳过隐藏的引脚和特殊引脚
+                if not getattr(pin, 'bHidden', False) and pin.pin_name not in ["OutputDelegate"]:
+                    parameters.append((pin.pin_name, pin.pin_type))
+        return parameters
+    
+    def _find_execution_output_pin(self, node: GraphNode) -> Optional['GraphPin']:
+        """
+        查找节点的执行输出引脚
+        """
+        # 优先查找标准的执行输出引脚
+        for pin_name in ["then", "exec"]:
+            pin = self._find_pin(node, pin_name, "output")
+            if pin:
+                return pin
+        
+        # 如果没找到，查找任何执行类型的输出引脚
+        for pin in node.pins:
+            if pin.direction == "output" and pin.pin_type == "exec":
+                return pin
+        
+        return None
+    
+    def _process_event_node(self, context: AnalysisContext, node: GraphNode) -> Optional[EventNode]:
+        """
+        处理事件节点 - 保留旧方法以防兼容性问题
+        K2Node_Event -> EventNode
+        """
+        return self._process_generic_event_node(context, node)
     
     def _extract_variable_reference(self, node: GraphNode) -> Tuple[str, bool]:
         """提取变量引用信息的公共方法"""
