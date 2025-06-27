@@ -159,6 +159,8 @@ class Expression(ASTNode):
     """
     # 表达式的类型信息（可选，用于未来扩展）
     expression_type: Optional[str] = None
+    # UE 类型信息（从 PinType 提取的完整类型信息）
+    ue_type: Optional[str] = None
 
 
 @dataclass

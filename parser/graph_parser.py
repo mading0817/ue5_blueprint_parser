@@ -242,11 +242,16 @@ def _parse_inline_pin(line: str) -> Optional[GraphPin]:
     pin_type_match = re.search(r'PinType\.PinCategory="([^"]+)"', line)
     pin_type = pin_type_match.group(1) if pin_type_match else "unknown"
     
-    # 提取默认值
+    # 提取默认值 - 修复转义字符处理
     default_value = None
-    default_match = re.search(r'DefaultValue="([^"]*)"', line)
+    # 使用更健壮的正则表达式来匹配包含转义字符的字符串
+    default_match = re.search(r'DefaultValue="((?:[^"\\]|\\.)*)"', line)
     if default_match:
-        default_value = default_match.group(1)
+        # 处理转义字符：将 \" 转换为 "
+        raw_value = default_match.group(1)
+        default_value = raw_value.replace('\\"', '"')
+        # 同时处理其他可能的转义字符
+        default_value = default_value.replace('\\\\', '\\')
 
     # 提取DefaultObject（通常用于对象引用）
     default_object_match = re.search(r'DefaultObject="([^"]*)"', line)

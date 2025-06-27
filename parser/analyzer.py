@@ -307,8 +307,12 @@ class GraphAnalyzer:
         return self._process_generic_event_node(context, node)
     
     def _extract_variable_reference(self, node: GraphNode) -> Tuple[str, bool]:
-        """提取变量引用信息的公共方法"""
+        """提取变量引用信息的公共方法 - 修复版本"""
         var_reference = node.properties.get("VariableReference", "")
+        var_name = "UnknownVariable"
+        is_self_context = True  # 默认值
+        
+        # 提取变量名
         if isinstance(var_reference, dict):
             var_name = var_reference.get("MemberName", "UnknownVariable")
             is_self_context = var_reference.get("bSelfContext", True)
@@ -316,10 +320,21 @@ class GraphAnalyzer:
             import re
             match = re.search(r'MemberName="([^"]+)"', var_reference)
             var_name = match.group(1) if match else "UnknownVariable"
-            is_self_context = "bSelfContext=True" in var_reference or "bSelfContext=False" not in var_reference
+            
+            # 检查 VariableReference 中的 bSelfContext
+            if "bSelfContext=True" in var_reference:
+                is_self_context = True
+            elif "bSelfContext=False" in var_reference:
+                is_self_context = False
+            else:
+                # 如果 VariableReference 中没有 bSelfContext，检查 SelfContextInfo
+                self_context_info = node.properties.get("SelfContextInfo", "")
+                is_self_context = self_context_info != "NotSelfContext"
         else:
-            var_name = "UnknownVariable"
-            is_self_context = True
+            # 如果没有 VariableReference，检查 SelfContextInfo
+            self_context_info = node.properties.get("SelfContextInfo", "")
+            is_self_context = self_context_info != "NotSelfContext"
+        
         return var_name, is_self_context
 
     def _extract_function_reference(self, node: GraphNode) -> str:
@@ -347,8 +362,9 @@ class GraphAnalyzer:
 
     def _process_variable_set(self, context: AnalysisContext, node: GraphNode) -> Optional[AssignmentNode]:
         """
-        处理变量赋值节点
+        处理变量赋值节点 - 增强版本
         K2Node_VariableSet -> AssignmentNode
+        实现完整的数据流解析以正确识别目标对象
         """
         # 提取变量名
         var_name, is_self_context = self._extract_variable_reference(node)
@@ -368,18 +384,36 @@ class GraphAnalyzer:
             literal_type="null"
         )
         
-        # 创建目标表达式 - 符合新架构要求
-        target_expr = VariableGetExpression(
-            variable_name=var_name,
-            is_self_variable=is_self_context,
-            source_location=self._create_source_location(node)
-        )
+        # 关键修复：解析目标对象
+        # 检查 self 引脚以确定操作的真正目标
+        self_pin = self._find_pin(node, "self", "input")
         
-        # 创建赋值节点 - 使用新的target字段
+        if self_pin and self_pin.linked_to and not is_self_context:
+            # 有 self 引脚连接且不是 SelfContext，说明这是对其他对象的属性赋值
+            # 使用数据流解析来找到真正的目标对象
+            target_object_expr = self._resolve_data_expression(context, self_pin)
+            
+            # 创建属性访问表达式作为赋值目标
+            target_expr = PropertyAccessNode(
+                target=target_object_expr,
+                property_name=var_name,
+                source_location=self._create_source_location(node)
+            )
+        else:
+            # 没有 self 引脚连接或是 SelfContext，这是对当前对象变量的赋值
+            target_expr = VariableGetExpression(
+                variable_name=var_name,
+                is_self_variable=is_self_context,
+                source_location=self._create_source_location(node)
+            )
+        
+        # 创建赋值节点
+        # 对于属性访问，不应该是本地变量声明
+        is_property_access = isinstance(target_expr, PropertyAccessNode)
         assignment = AssignmentNode(
             target=target_expr,
             value_expression=value_expr,
-            is_local_variable=not is_self_context,
+            is_local_variable=not is_self_context and not is_property_access,
             source_location=self._create_source_location(node)
         )
         
@@ -404,14 +438,16 @@ class GraphAnalyzer:
             return PropertyAccessNode(
                 target=base_expression,
                 property_name=var_name,
-                source_location=self._create_source_location(node)
+                source_location=self._create_source_location(node),
+                ue_type="property_access"
             )
         else:
             # 没有 self 引脚连接，这是一个顶级变量
             return VariableGetExpression(
                 variable_name=var_name,
                 is_self_variable=is_self_context,
-                source_location=self._create_source_location(node)
+                source_location=self._create_source_location(node),
+                ue_type="variable_reference"
             )
     
     def _process_call_function(self, context: AnalysisContext, node: GraphNode) -> Optional[ASTNode]:
@@ -1228,13 +1264,17 @@ class GraphAnalyzer:
                         current_pin = pin
                         break
     
-    def _resolve_data_expression(self, context: AnalysisContext, pin: Optional[GraphPin]) -> Expression:
+    def _resolve_data_expression(self, context: AnalysisContext, pin: Optional[GraphPin], visited_path: Optional[Set[str]] = None) -> Expression:
         """
-        解析数据引脚连接，构建表达式树
-        使用符号表优先的分析方法
+        解析数据引脚连接，构建表达式树 - 增强版本
+        实现数据流递归解析，支持循环检测和类型信息提取
         """
         if not pin:
             return LiteralExpression(value="null", literal_type="null")
+        
+        # 初始化访问路径（用于循环检测）
+        if visited_path is None:
+            visited_path = set()
         
         # 优先检查 pin_ast_map：如果该引脚已有预定义的 AST 表达式（如循环变量），直接返回
         if pin.pin_id in context.pin_ast_map:
@@ -1250,14 +1290,29 @@ class GraphAnalyzer:
                     is_self_variable=not (symbol.is_loop_variable or symbol.is_callback_parameter)
                 )
             
-            # 没有找到符号，使用默认值
+            # 没有找到符号，使用默认值并提取类型信息
             default_value = self._get_pin_default_value(pin)
-            return LiteralExpression(value=default_value, literal_type="auto")
+            ue_type = self._extract_pin_type(pin)
+            return LiteralExpression(
+                value=default_value, 
+                literal_type="auto",
+                expression_type=ue_type
+            )
         
         # 获取连接的源节点
         source_link = pin.linked_to[0]
         source_node_id = source_link.get("node_guid") or source_link.get("node_name")
         source_pin_id = source_link.get("pin_id")
+        
+        # 循环检测：检查是否已经在访问路径中
+        path_key = f"{source_node_id}:{source_pin_id}"
+        if path_key in visited_path:
+            # 检测到循环引用，返回特殊节点
+            return LiteralExpression(
+                value="<circular_reference>",
+                literal_type="error",
+                expression_type="circular_ref"
+            )
         
         # 关键修复：检查源引脚是否在 pin_ast_map 中（循环变量等特殊引脚）
         if source_pin_id and source_pin_id in context.pin_ast_map:
@@ -1275,9 +1330,14 @@ class GraphAnalyzer:
         if not source_node:
             return LiteralExpression(value="<node_not_found>", literal_type="error")
         
+        # 将当前路径添加到访问路径中
+        visited_path.add(path_key)
+        
         # 首先检查源节点是否产生符号表中的变量
         result_expr = self._try_resolve_from_symbol_table(context, source_node, source_pin_id)
         if result_expr:
+            # 从访问路径中移除当前路径
+            visited_path.remove(path_key)
             context.memoization_cache[cache_key] = result_expr
             return result_expr
         
@@ -1287,8 +1347,8 @@ class GraphAnalyzer:
             # 创建临时变量
             temp_var_name = self._generate_temp_variable_name(context, source_node, source_pin_id)
             
-            # 解析源表达式
-            source_expr = self._resolve_node_expression(context, source_node, source_pin_id)
+            # 解析源表达式（传递访问路径）
+            source_expr = self._resolve_node_expression(context, source_node, source_pin_id, visited_path)
             
             # 创建临时变量声明并添加到scope_prelude
             temp_var_decl = TemporaryVariableDeclaration(
@@ -1304,8 +1364,11 @@ class GraphAnalyzer:
                 source_location=self._create_source_location(source_node)
             )
         else:
-            # 直接解析表达式
-            result = self._resolve_node_expression(context, source_node, source_pin_id)
+            # 直接解析表达式（传递访问路径）
+            result = self._resolve_node_expression(context, source_node, source_pin_id, visited_path)
+        
+        # 从访问路径中移除当前路径
+        visited_path.remove(path_key)
         
         # 缓存结果
         context.memoization_cache[cache_key] = result
@@ -1385,7 +1448,7 @@ class GraphAnalyzer:
         
         return temp_name
     
-    def _resolve_node_expression(self, context: AnalysisContext, node: GraphNode, pin_id: str) -> Expression:
+    def _resolve_node_expression(self, context: AnalysisContext, node: GraphNode, pin_id: str, visited_path: Optional[Set[str]] = None) -> Expression:
         """
         根据节点类型解析为表达式
         """
@@ -1403,7 +1466,7 @@ class GraphAnalyzer:
                     break
             
             if input_pin:
-                return self._resolve_data_expression(context, input_pin)
+                return self._resolve_data_expression(context, input_pin, visited_path)
             else:
                 return LiteralExpression(value="null", literal_type="null")
         
@@ -1568,4 +1631,30 @@ class GraphAnalyzer:
     
     def _get_pin_default_value(self, pin: GraphPin) -> Any:
         """获取引脚的默认值"""
-        return pin.default_value if pin and pin.default_value is not None else None 
+        return pin.default_value if pin and pin.default_value is not None else None
+    
+    def _extract_pin_type(self, pin: GraphPin) -> str:
+        """
+        从引脚中提取 UE 类型信息
+        用于为 AST 节点附加类型信息
+        """
+        if not pin:
+            return "unknown"
+        
+        # 基本类型映射
+        type_mapping = {
+            "exec": "exec",
+            "bool": "bool", 
+            "int": "int",
+            "float": "float",
+            "string": "string",
+            "object": "object",
+            "struct": "struct",
+            "delegate": "delegate"
+        }
+        
+        base_type = type_mapping.get(pin.pin_type, pin.pin_type)
+        
+        # 对于结构体类型，尝试从 PinSubCategoryObject 中提取更具体的类型
+        # 这需要从原始引脚数据中解析，目前返回基本类型
+        return base_type 
