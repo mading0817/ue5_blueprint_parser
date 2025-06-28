@@ -1,0 +1,592 @@
+Begin Object Class=/Script/UMG.SizeBox Name="SizeBox_Root" ExportPath="/Script/UMG.SizeBox'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.SizeBox_Root'"
+   Begin Object Class=/Script/UMG.SizeBoxSlot Name="SizeBoxSlot_0" ExportPath="/Script/UMG.SizeBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.SizeBox_Root.SizeBoxSlot_0'"
+   End Object
+   Begin Object Name="SizeBoxSlot_0" ExportPath="/Script/UMG.SizeBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.SizeBox_Root.SizeBoxSlot_0'"
+      Parent="/Script/UMG.SizeBox'SizeBox_Root'"
+      Content="/Script/UMG.Border'Border_0'"
+   End Object
+   WidthOverride=800.000000
+   HeightOverride=800.000000
+   bOverride_WidthOverride=True
+   bOverride_HeightOverride=True
+   Slots(0)="/Script/UMG.SizeBoxSlot'SizeBoxSlot_0'"
+   bExpandedInDesigner=True
+   DisplayLabel="SizeBox_Root"
+End Object
+Begin Object Class=/Script/UMGEditor.WidgetSlotPair Name="WidgetSlotPair_4" ExportPath="/Script/UMGEditor.WidgetSlotPair'/Engine/Transient.WidgetSlotPair_4'"
+   WidgetName="SizeBox_Root"
+End Object
+Begin Object Class=/Script/UMG.Border Name="Border_0" ExportPath="/Script/UMG.Border'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.Border_0'"
+   Begin Object Class=/Script/UMG.BorderSlot Name="BorderSlot_0" ExportPath="/Script/UMG.BorderSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.Border_0.BorderSlot_0'"
+   End Object
+   Begin Object Name="BorderSlot_0" ExportPath="/Script/UMG.BorderSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.Border_0.BorderSlot_0'"
+      Padding=(Left=7.500000,Top=7.500000,Right=7.500000,Bottom=7.500000)
+      Parent="/Script/UMG.Border'Border_0'"
+      Content="/Script/UMG.Overlay'Overlay_Box'"
+   End Object
+   Padding=(Left=7.500000,Top=7.500000,Right=7.500000,Bottom=7.500000)
+   Background=(ImageType=FullColor,ImageSize=(X=248.000000,Y=374.000000),Margin=(Left=1.000000,Top=1.000000,Right=1.000000,Bottom=1.000000),TintColor=(SpecifiedColor=(R=0.010000,G=0.010000,B=0.010000,A=1.000000)))
+   Slots(0)="/Script/UMG.BorderSlot'BorderSlot_0'"
+   bExpandedInDesigner=True
+End Object
+Begin Object Class=/Script/UMG.Overlay Name="Overlay_Box" ExportPath="/Script/UMG.Overlay'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.Overlay_Box'"
+   Begin Object Class=/Script/UMG.OverlaySlot Name="OverlaySlot_1" ExportPath="/Script/UMG.OverlaySlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.Overlay_Box.OverlaySlot_1'"
+   End Object
+   Begin Object Class=/Script/UMG.OverlaySlot Name="OverlaySlot_4" ExportPath="/Script/UMG.OverlaySlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.Overlay_Box.OverlaySlot_4'"
+   End Object
+   Begin Object Class=/Script/UMG.OverlaySlot Name="OverlaySlot_0" ExportPath="/Script/UMG.OverlaySlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.Overlay_Box.OverlaySlot_0'"
+   End Object
+   Begin Object Name="OverlaySlot_1" ExportPath="/Script/UMG.OverlaySlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.Overlay_Box.OverlaySlot_1'"
+      HorizontalAlignment=HAlign_Fill
+      VerticalAlignment=VAlign_Fill
+      Parent="/Script/UMG.Overlay'Overlay_Box'"
+      Content="/Script/UMG.Image'Image_Background'"
+   End Object
+   Begin Object Name="OverlaySlot_4" ExportPath="/Script/UMG.OverlaySlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.Overlay_Box.OverlaySlot_4'"
+      HorizontalAlignment=HAlign_Fill
+      VerticalAlignment=VAlign_Fill
+      Parent="/Script/UMG.Overlay'Overlay_Box'"
+      Content="/Script/UMG.VerticalBox'MainMenuBox'"
+   End Object
+   Begin Object Name="OverlaySlot_0" ExportPath="/Script/UMG.OverlaySlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.Overlay_Box.OverlaySlot_0'"
+      HorizontalAlignment=HAlign_Right
+      Parent="/Script/UMG.Overlay'Overlay_Box'"
+      Content="/Game/BPs/UI/Buttons/WBP_CloseButton.WBP_CloseButton_C'CloseButton'"
+   End Object
+   Slots(0)="/Script/UMG.OverlaySlot'OverlaySlot_1'"
+   Slots(1)="/Script/UMG.OverlaySlot'OverlaySlot_4'"
+   Slots(2)="/Script/UMG.OverlaySlot'OverlaySlot_0'"
+   bExpandedInDesigner=True
+   DisplayLabel="Overlay_Box"
+End Object
+Begin Object Class=/Script/UMG.Image Name="Image_Background" ExportPath="/Script/UMG.Image'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.Image_Background'"
+   Brush=(TintColor=(SpecifiedColor=(R=0.031250,G=0.019466,B=0.017904,A=1.000000)))
+   bIsVariable=False
+   DisplayLabel="Image_Background"
+End Object
+Begin Object Class=/Script/UMG.VerticalBox Name="MainMenuBox" ExportPath="/Script/UMG.VerticalBox'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.MainMenuBox'"
+   Begin Object Class=/Script/UMG.VerticalBoxSlot Name="VerticalBoxSlot_3" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.MainMenuBox.VerticalBoxSlot_3'"
+   End Object
+   Begin Object Class=/Script/UMG.VerticalBoxSlot Name="VerticalBoxSlot_4" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.MainMenuBox.VerticalBoxSlot_4'"
+   End Object
+   Begin Object Class=/Script/UMG.VerticalBoxSlot Name="VerticalBoxSlot_2" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.MainMenuBox.VerticalBoxSlot_2'"
+   End Object
+   Begin Object Name="VerticalBoxSlot_3" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.MainMenuBox.VerticalBoxSlot_3'"
+      Size=(Value=0.800000,SizeRule=Fill)
+      Parent="/Script/UMG.VerticalBox'MainMenuBox'"
+      Content="/Script/UMG.Border'AttributesBorder'"
+   End Object
+   Begin Object Name="VerticalBoxSlot_4" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.MainMenuBox.VerticalBoxSlot_4'"
+      Size=(Value=0.100000,SizeRule=Fill)
+      Parent="/Script/UMG.VerticalBox'MainMenuBox'"
+      Content="/Script/UMG.HorizontalBox'AvailablePoint'"
+   End Object
+   Begin Object Name="VerticalBoxSlot_2" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.MainMenuBox.VerticalBoxSlot_2'"
+      Size=(Value=0.100000,SizeRule=Fill)
+      VerticalAlignment=VAlign_Center
+      Parent="/Script/UMG.VerticalBox'MainMenuBox'"
+      Content="/Script/UMG.TextBlock'TextBlock_128'"
+   End Object
+   Slots(0)="/Script/UMG.VerticalBoxSlot'VerticalBoxSlot_2'"
+   Slots(1)="/Script/UMG.VerticalBoxSlot'VerticalBoxSlot_3'"
+   Slots(2)="/Script/UMG.VerticalBoxSlot'VerticalBoxSlot_4'"
+   bExpandedInDesigner=True
+   DisplayLabel="MainMenuBox"
+End Object
+Begin Object Class=/Script/UMG.TextBlock Name="TextBlock_128" ExportPath="/Script/UMG.TextBlock'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.TextBlock_128'"
+   Text=NSLOCTEXT("[176EAA45DB63CAB57B675F8B22A99752]", "63E61CB64C4076250B3091BD5F9F70C6", "Attributes")
+   Font=(Size=37.500000,LetterSpacing=500)
+   Justification=Center
+End Object
+Begin Object Class=/Script/UMG.Border Name="AttributesBorder" ExportPath="/Script/UMG.Border'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.AttributesBorder'"
+   Begin Object Class=/Script/UMG.BorderSlot Name="BorderSlot_0" ExportPath="/Script/UMG.BorderSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.AttributesBorder.BorderSlot_0'"
+   End Object
+   Begin Object Name="BorderSlot_0" ExportPath="/Script/UMG.BorderSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.AttributesBorder.BorderSlot_0'"
+      Parent="/Script/UMG.Border'AttributesBorder'"
+      Content="/Script/UMG.HorizontalBox'AttributeAreas'"
+   End Object
+   Background=(DrawAs=Border,ImageType=FullColor,Margin=(Top=0.200000,Bottom=0.200000),TintColor=(SpecifiedColor=(R=0.010000,G=0.010000,B=0.010000,A=1.000000)),ResourceObject="/Script/Engine.Texture2D'/Engine/EngineResources/WhiteSquareTexture.WhiteSquareTexture'")
+   Slots(0)="/Script/UMG.BorderSlot'BorderSlot_0'"
+   bExpandedInDesigner=True
+   DisplayLabel="AttributesBorder"
+End Object
+Begin Object Class=/Script/UMG.HorizontalBox Name="AttributeAreas" ExportPath="/Script/UMG.HorizontalBox'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.AttributeAreas'"
+   Begin Object Class=/Script/UMG.HorizontalBoxSlot Name="HorizontalBoxSlot_2" ExportPath="/Script/UMG.HorizontalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.AttributeAreas.HorizontalBoxSlot_2'"
+   End Object
+   Begin Object Class=/Script/UMG.HorizontalBoxSlot Name="HorizontalBoxSlot_0" ExportPath="/Script/UMG.HorizontalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.AttributeAreas.HorizontalBoxSlot_0'"
+   End Object
+   Begin Object Class=/Script/UMG.HorizontalBoxSlot Name="HorizontalBoxSlot_1" ExportPath="/Script/UMG.HorizontalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.AttributeAreas.HorizontalBoxSlot_1'"
+   End Object
+   Begin Object Name="HorizontalBoxSlot_2" ExportPath="/Script/UMG.HorizontalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.AttributeAreas.HorizontalBoxSlot_2'"
+      Parent="/Script/UMG.HorizontalBox'AttributeAreas'"
+      Content="/Script/UMG.Border'Border_2'"
+   End Object
+   Begin Object Name="HorizontalBoxSlot_0" ExportPath="/Script/UMG.HorizontalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.AttributeAreas.HorizontalBoxSlot_0'"
+      Size=(SizeRule=Fill)
+      Padding=(Right=5.000000)
+      Parent="/Script/UMG.HorizontalBox'AttributeAreas'"
+      Content="/Script/UMG.VerticalBox'PrimaryMain'"
+   End Object
+   Begin Object Name="HorizontalBoxSlot_1" ExportPath="/Script/UMG.HorizontalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.AttributeAreas.HorizontalBoxSlot_1'"
+      Size=(SizeRule=Fill)
+      Padding=(Left=5.000000)
+      Parent="/Script/UMG.HorizontalBox'AttributeAreas'"
+      Content="/Script/UMG.VerticalBox'SecondaryMain'"
+   End Object
+   Slots(0)="/Script/UMG.HorizontalBoxSlot'HorizontalBoxSlot_0'"
+   Slots(1)="/Script/UMG.HorizontalBoxSlot'HorizontalBoxSlot_2'"
+   Slots(2)="/Script/UMG.HorizontalBoxSlot'HorizontalBoxSlot_1'"
+   bExpandedInDesigner=True
+   DisplayLabel="AttributeAreas"
+End Object
+Begin Object Class=/Script/UMG.VerticalBox Name="PrimaryMain" ExportPath="/Script/UMG.VerticalBox'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.PrimaryMain'"
+   Begin Object Class=/Script/UMG.VerticalBoxSlot Name="VerticalBoxSlot_0" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.PrimaryMain.VerticalBoxSlot_0'"
+   End Object
+   Begin Object Class=/Script/UMG.VerticalBoxSlot Name="VerticalBoxSlot_1" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.PrimaryMain.VerticalBoxSlot_1'"
+   End Object
+   Begin Object Name="VerticalBoxSlot_0" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.PrimaryMain.VerticalBoxSlot_0'"
+      Size=(Value=0.100000,SizeRule=Fill)
+      VerticalAlignment=VAlign_Bottom
+      Parent="/Script/UMG.VerticalBox'PrimaryMain'"
+      Content="/Script/UMG.TextBlock'PrimaryTitle'"
+   End Object
+   Begin Object Name="VerticalBoxSlot_1" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.PrimaryMain.VerticalBoxSlot_1'"
+      Size=(Value=0.900000,SizeRule=Fill)
+      Parent="/Script/UMG.VerticalBox'PrimaryMain'"
+      Content="/Script/UMG.VerticalBox'PrimaryRows'"
+   End Object
+   Slots(0)="/Script/UMG.VerticalBoxSlot'VerticalBoxSlot_0'"
+   Slots(1)="/Script/UMG.VerticalBoxSlot'VerticalBoxSlot_1'"
+   bExpandedInDesigner=True
+   DisplayLabel="PrimaryMain"
+End Object
+Begin Object Class=/Script/UMG.TextBlock Name="PrimaryTitle" ExportPath="/Script/UMG.TextBlock'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.PrimaryTitle'"
+   Text=NSLOCTEXT("[176EAA45DB63CAB57B675F8B22A99752]", "12EF655C479E8F35E3680082811B6C8B", "Primary")
+   Font=(Size=22.500000,LetterSpacing=100)
+   Justification=Center
+   DisplayLabel="PrimaryTitle"
+End Object
+Begin Object Class=/Script/UMG.VerticalBox Name="PrimaryRows" ExportPath="/Script/UMG.VerticalBox'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.PrimaryRows'"
+   Begin Object Class=/Script/UMG.VerticalBoxSlot Name="VerticalBoxSlot_1" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.PrimaryRows.VerticalBoxSlot_1'"
+   End Object
+   Begin Object Class=/Script/UMG.VerticalBoxSlot Name="VerticalBoxSlot_2" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.PrimaryRows.VerticalBoxSlot_2'"
+   End Object
+   Begin Object Class=/Script/UMG.VerticalBoxSlot Name="VerticalBoxSlot_3" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.PrimaryRows.VerticalBoxSlot_3'"
+   End Object
+   Begin Object Class=/Script/UMG.VerticalBoxSlot Name="VerticalBoxSlot_4" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.PrimaryRows.VerticalBoxSlot_4'"
+   End Object
+   Begin Object Class=/Script/UMG.VerticalBoxSlot Name="VerticalBoxSlot_5" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.PrimaryRows.VerticalBoxSlot_5'"
+   End Object
+   Begin Object Name="VerticalBoxSlot_1" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.PrimaryRows.VerticalBoxSlot_1'"
+      Size=(SizeRule=Fill)
+      Parent="/Script/UMG.VerticalBox'PrimaryRows'"
+      Content="/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRowButton.WBP_AttributeValueRowButton_C'WBP_Primary_1'"
+   End Object
+   Begin Object Name="VerticalBoxSlot_2" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.PrimaryRows.VerticalBoxSlot_2'"
+      Size=(SizeRule=Fill)
+      Parent="/Script/UMG.VerticalBox'PrimaryRows'"
+      Content="/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRowButton.WBP_AttributeValueRowButton_C'WBP_Primary_2'"
+   End Object
+   Begin Object Name="VerticalBoxSlot_3" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.PrimaryRows.VerticalBoxSlot_3'"
+      Size=(SizeRule=Fill)
+      Parent="/Script/UMG.VerticalBox'PrimaryRows'"
+      Content="/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRowButton.WBP_AttributeValueRowButton_C'WBP_Primary_3'"
+   End Object
+   Begin Object Name="VerticalBoxSlot_4" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.PrimaryRows.VerticalBoxSlot_4'"
+      Size=(SizeRule=Fill)
+      Parent="/Script/UMG.VerticalBox'PrimaryRows'"
+      Content="/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRowButton.WBP_AttributeValueRowButton_C'WBP_Primary_4'"
+   End Object
+   Begin Object Name="VerticalBoxSlot_5" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.PrimaryRows.VerticalBoxSlot_5'"
+      Size=(SizeRule=Fill)
+      Parent="/Script/UMG.VerticalBox'PrimaryRows'"
+      Content="/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRowButton.WBP_AttributeValueRowButton_C'WBP_Primary_5'"
+   End Object
+   Slots(0)="/Script/UMG.VerticalBoxSlot'VerticalBoxSlot_1'"
+   Slots(1)="/Script/UMG.VerticalBoxSlot'VerticalBoxSlot_2'"
+   Slots(2)="/Script/UMG.VerticalBoxSlot'VerticalBoxSlot_3'"
+   Slots(3)="/Script/UMG.VerticalBoxSlot'VerticalBoxSlot_4'"
+   Slots(4)="/Script/UMG.VerticalBoxSlot'VerticalBoxSlot_5'"
+   bIsVariable=True
+   DisplayLabel="PrimaryRows"
+End Object
+Begin Object Class=/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRowButton.WBP_AttributeValueRowButton_C Name="WBP_Primary_1" ExportPath="/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRowButton.WBP_AttributeValueRowButton_C'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.WBP_Primary_1'"
+   bIsVariable=False
+   DisplayLabel="WBP_Primary_1"
+End Object
+Begin Object Class=/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRowButton.WBP_AttributeValueRowButton_C Name="WBP_Primary_2" ExportPath="/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRowButton.WBP_AttributeValueRowButton_C'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.WBP_Primary_2'"
+   bIsVariable=False
+   DisplayLabel="WBP_Primary_2"
+End Object
+Begin Object Class=/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRowButton.WBP_AttributeValueRowButton_C Name="WBP_Primary_3" ExportPath="/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRowButton.WBP_AttributeValueRowButton_C'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.WBP_Primary_3'"
+   bIsVariable=False
+   DisplayLabel="WBP_Primary_3"
+End Object
+Begin Object Class=/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRowButton.WBP_AttributeValueRowButton_C Name="WBP_Primary_4" ExportPath="/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRowButton.WBP_AttributeValueRowButton_C'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.WBP_Primary_4'"
+   bIsVariable=False
+   DisplayLabel="WBP_Primary_4"
+End Object
+Begin Object Class=/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRowButton.WBP_AttributeValueRowButton_C Name="WBP_Primary_5" ExportPath="/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRowButton.WBP_AttributeValueRowButton_C'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.WBP_Primary_5'"
+   bIsVariable=False
+   DisplayLabel="WBP_Primary_5"
+End Object
+Begin Object Class=/Script/UMG.Border Name="Border_2" ExportPath="/Script/UMG.Border'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.Border_2'"
+   Begin Object Class=/Script/UMG.BorderSlot Name="BorderSlot_0" ExportPath="/Script/UMG.BorderSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.Border_2.BorderSlot_0'"
+   End Object
+   Begin Object Name="BorderSlot_0" ExportPath="/Script/UMG.BorderSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.Border_2.BorderSlot_0'"
+      Padding=(Left=0.000000,Top=0.000000,Right=0.000000,Bottom=0.000000)
+      Parent="/Script/UMG.Border'Border_2'"
+      Content="/Script/UMG.Spacer'Spacer_162'"
+   End Object
+   Padding=(Left=0.000000,Top=0.000000,Right=0.000000,Bottom=0.000000)
+   Background=(TintColor=(SpecifiedColor=(R=0.010000,G=0.010000,B=0.010000,A=1.000000)))
+   Slots(0)="/Script/UMG.BorderSlot'BorderSlot_0'"
+   bExpandedInDesigner=True
+End Object
+Begin Object Class=/Script/UMG.Spacer Name="Spacer_162" ExportPath="/Script/UMG.Spacer'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.Spacer_162'"
+   Size=(X=5.000000,Y=1.000000)
+End Object
+Begin Object Class=/Script/UMG.VerticalBox Name="SecondaryMain" ExportPath="/Script/UMG.VerticalBox'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.SecondaryMain'"
+   Begin Object Class=/Script/UMG.VerticalBoxSlot Name="VerticalBoxSlot_1" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.SecondaryMain.VerticalBoxSlot_1'"
+   End Object
+   Begin Object Class=/Script/UMG.VerticalBoxSlot Name="VerticalBoxSlot_0" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.SecondaryMain.VerticalBoxSlot_0'"
+   End Object
+   Begin Object Name="VerticalBoxSlot_1" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.SecondaryMain.VerticalBoxSlot_1'"
+      Size=(Value=0.900000,SizeRule=Fill)
+      Parent="/Script/UMG.VerticalBox'SecondaryMain'"
+      Content="/Script/UMG.HorizontalBox'SecondaryRows'"
+   End Object
+   Begin Object Name="VerticalBoxSlot_0" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.SecondaryMain.VerticalBoxSlot_0'"
+      Size=(Value=0.100000,SizeRule=Fill)
+      VerticalAlignment=VAlign_Bottom
+      Parent="/Script/UMG.VerticalBox'SecondaryMain'"
+      Content="/Script/UMG.TextBlock'SecondaryTitle'"
+   End Object
+   Slots(0)="/Script/UMG.VerticalBoxSlot'VerticalBoxSlot_0'"
+   Slots(1)="/Script/UMG.VerticalBoxSlot'VerticalBoxSlot_1'"
+   bExpandedInDesigner=True
+   DisplayLabel="SecondaryMain"
+End Object
+Begin Object Class=/Script/UMG.TextBlock Name="SecondaryTitle" ExportPath="/Script/UMG.TextBlock'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.SecondaryTitle'"
+   Text=NSLOCTEXT("[176EAA45DB63CAB57B675F8B22A99752]", "34FEB6AE4F91E779EEB4DF998933AC1A", "Secondary")
+   Font=(Size=22.500000,LetterSpacing=100)
+   Justification=Center
+   DisplayLabel="SecondaryTitle"
+End Object
+Begin Object Class=/Script/UMG.HorizontalBox Name="SecondaryRows" ExportPath="/Script/UMG.HorizontalBox'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.SecondaryRows'"
+   Begin Object Class=/Script/UMG.HorizontalBoxSlot Name="HorizontalBoxSlot_0" ExportPath="/Script/UMG.HorizontalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.SecondaryRows.HorizontalBoxSlot_0'"
+   End Object
+   Begin Object Class=/Script/UMG.HorizontalBoxSlot Name="HorizontalBoxSlot_1" ExportPath="/Script/UMG.HorizontalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.SecondaryRows.HorizontalBoxSlot_1'"
+   End Object
+   Begin Object Name="HorizontalBoxSlot_0" ExportPath="/Script/UMG.HorizontalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.SecondaryRows.HorizontalBoxSlot_0'"
+      Size=(SizeRule=Fill)
+      Parent="/Script/UMG.HorizontalBox'SecondaryRows'"
+      Content="/Script/UMG.VerticalBox'LeftArea'"
+   End Object
+   Begin Object Name="HorizontalBoxSlot_1" ExportPath="/Script/UMG.HorizontalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.SecondaryRows.HorizontalBoxSlot_1'"
+      Size=(SizeRule=Fill)
+      Parent="/Script/UMG.HorizontalBox'SecondaryRows'"
+      Content="/Script/UMG.VerticalBox'RightArea'"
+   End Object
+   Slots(0)="/Script/UMG.HorizontalBoxSlot'HorizontalBoxSlot_0'"
+   Slots(1)="/Script/UMG.HorizontalBoxSlot'HorizontalBoxSlot_1'"
+   bExpandedInDesigner=True
+End Object
+Begin Object Class=/Script/UMG.VerticalBox Name="LeftArea" ExportPath="/Script/UMG.VerticalBox'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.LeftArea'"
+   Begin Object Class=/Script/UMG.VerticalBoxSlot Name="VerticalBoxSlot_0" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.LeftArea.VerticalBoxSlot_0'"
+   End Object
+   Begin Object Class=/Script/UMG.VerticalBoxSlot Name="VerticalBoxSlot_1" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.LeftArea.VerticalBoxSlot_1'"
+   End Object
+   Begin Object Class=/Script/UMG.VerticalBoxSlot Name="VerticalBoxSlot_2" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.LeftArea.VerticalBoxSlot_2'"
+   End Object
+   Begin Object Class=/Script/UMG.VerticalBoxSlot Name="VerticalBoxSlot_3" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.LeftArea.VerticalBoxSlot_3'"
+   End Object
+   Begin Object Class=/Script/UMG.VerticalBoxSlot Name="VerticalBoxSlot_4" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.LeftArea.VerticalBoxSlot_4'"
+   End Object
+   Begin Object Class=/Script/UMG.VerticalBoxSlot Name="VerticalBoxSlot_5" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.LeftArea.VerticalBoxSlot_5'"
+   End Object
+   Begin Object Class=/Script/UMG.VerticalBoxSlot Name="VerticalBoxSlot_6" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.LeftArea.VerticalBoxSlot_6'"
+   End Object
+   Begin Object Class=/Script/UMG.VerticalBoxSlot Name="VerticalBoxSlot_7" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.LeftArea.VerticalBoxSlot_7'"
+   End Object
+   Begin Object Name="VerticalBoxSlot_0" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.LeftArea.VerticalBoxSlot_0'"
+      Size=(SizeRule=Fill)
+      Parent="/Script/UMG.VerticalBox'LeftArea'"
+      Content="/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C'WBP_Secondary_1'"
+   End Object
+   Begin Object Name="VerticalBoxSlot_1" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.LeftArea.VerticalBoxSlot_1'"
+      Size=(SizeRule=Fill)
+      Parent="/Script/UMG.VerticalBox'LeftArea'"
+      Content="/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C'WBP_Secondary_2'"
+   End Object
+   Begin Object Name="VerticalBoxSlot_2" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.LeftArea.VerticalBoxSlot_2'"
+      Size=(SizeRule=Fill)
+      Parent="/Script/UMG.VerticalBox'LeftArea'"
+      Content="/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C'WBP_Secondary_3'"
+   End Object
+   Begin Object Name="VerticalBoxSlot_3" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.LeftArea.VerticalBoxSlot_3'"
+      Size=(SizeRule=Fill)
+      Parent="/Script/UMG.VerticalBox'LeftArea'"
+      Content="/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C'WBP_Secondary_4'"
+   End Object
+   Begin Object Name="VerticalBoxSlot_4" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.LeftArea.VerticalBoxSlot_4'"
+      Size=(SizeRule=Fill)
+      Parent="/Script/UMG.VerticalBox'LeftArea'"
+      Content="/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C'WBP_Secondary_5'"
+   End Object
+   Begin Object Name="VerticalBoxSlot_5" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.LeftArea.VerticalBoxSlot_5'"
+      Size=(SizeRule=Fill)
+      Parent="/Script/UMG.VerticalBox'LeftArea'"
+      Content="/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C'WBP_Secondary_6'"
+   End Object
+   Begin Object Name="VerticalBoxSlot_6" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.LeftArea.VerticalBoxSlot_6'"
+      Size=(SizeRule=Fill)
+      Parent="/Script/UMG.VerticalBox'LeftArea'"
+      Content="/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C'WBP_Secondary_7'"
+   End Object
+   Begin Object Name="VerticalBoxSlot_7" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.LeftArea.VerticalBoxSlot_7'"
+      Size=(SizeRule=Fill)
+      Parent="/Script/UMG.VerticalBox'LeftArea'"
+      Content="/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C'WBP_Secondary_8'"
+   End Object
+   Slots(0)="/Script/UMG.VerticalBoxSlot'VerticalBoxSlot_0'"
+   Slots(1)="/Script/UMG.VerticalBoxSlot'VerticalBoxSlot_1'"
+   Slots(2)="/Script/UMG.VerticalBoxSlot'VerticalBoxSlot_2'"
+   Slots(3)="/Script/UMG.VerticalBoxSlot'VerticalBoxSlot_3'"
+   Slots(4)="/Script/UMG.VerticalBoxSlot'VerticalBoxSlot_4'"
+   Slots(5)="/Script/UMG.VerticalBoxSlot'VerticalBoxSlot_5'"
+   Slots(6)="/Script/UMG.VerticalBoxSlot'VerticalBoxSlot_6'"
+   Slots(7)="/Script/UMG.VerticalBoxSlot'VerticalBoxSlot_7'"
+   bIsVariable=True
+   bExpandedInDesigner=True
+   DisplayLabel="LeftArea"
+End Object
+Begin Object Class=/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C Name="WBP_Secondary_1" ExportPath="/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.WBP_Secondary_1'"
+   bIsVariable=False
+   DisplayLabel="WBP_Secondary_1"
+End Object
+Begin Object Class=/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C Name="WBP_Secondary_2" ExportPath="/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.WBP_Secondary_2'"
+   bIsVariable=False
+   DisplayLabel="WBP_Secondary_2"
+End Object
+Begin Object Class=/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C Name="WBP_Secondary_3" ExportPath="/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.WBP_Secondary_3'"
+   bIsVariable=False
+   DisplayLabel="WBP_Secondary_3"
+End Object
+Begin Object Class=/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C Name="WBP_Secondary_4" ExportPath="/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.WBP_Secondary_4'"
+   bIsVariable=False
+   DisplayLabel="WBP_Secondary_4"
+End Object
+Begin Object Class=/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C Name="WBP_Secondary_5" ExportPath="/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.WBP_Secondary_5'"
+   bIsVariable=False
+   DisplayLabel="WBP_Secondary_5"
+End Object
+Begin Object Class=/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C Name="WBP_Secondary_6" ExportPath="/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.WBP_Secondary_6'"
+   bIsVariable=False
+   DisplayLabel="WBP_Secondary_6"
+End Object
+Begin Object Class=/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C Name="WBP_Secondary_7" ExportPath="/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.WBP_Secondary_7'"
+   bIsVariable=False
+   DisplayLabel="WBP_Secondary_7"
+End Object
+Begin Object Class=/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C Name="WBP_Secondary_8" ExportPath="/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.WBP_Secondary_8'"
+   bIsVariable=False
+   DisplayLabel="WBP_Secondary_8"
+End Object
+Begin Object Class=/Script/UMG.VerticalBox Name="RightArea" ExportPath="/Script/UMG.VerticalBox'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.RightArea'"
+   Begin Object Class=/Script/UMG.VerticalBoxSlot Name="VerticalBoxSlot_0" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.RightArea.VerticalBoxSlot_0'"
+   End Object
+   Begin Object Class=/Script/UMG.VerticalBoxSlot Name="VerticalBoxSlot_1" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.RightArea.VerticalBoxSlot_1'"
+   End Object
+   Begin Object Class=/Script/UMG.VerticalBoxSlot Name="VerticalBoxSlot_2" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.RightArea.VerticalBoxSlot_2'"
+   End Object
+   Begin Object Class=/Script/UMG.VerticalBoxSlot Name="VerticalBoxSlot_3" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.RightArea.VerticalBoxSlot_3'"
+   End Object
+   Begin Object Class=/Script/UMG.VerticalBoxSlot Name="VerticalBoxSlot_4" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.RightArea.VerticalBoxSlot_4'"
+   End Object
+   Begin Object Class=/Script/UMG.VerticalBoxSlot Name="VerticalBoxSlot_5" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.RightArea.VerticalBoxSlot_5'"
+   End Object
+   Begin Object Class=/Script/UMG.VerticalBoxSlot Name="VerticalBoxSlot_6" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.RightArea.VerticalBoxSlot_6'"
+   End Object
+   Begin Object Class=/Script/UMG.VerticalBoxSlot Name="VerticalBoxSlot_7" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.RightArea.VerticalBoxSlot_7'"
+   End Object
+   Begin Object Name="VerticalBoxSlot_0" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.RightArea.VerticalBoxSlot_0'"
+      Size=(SizeRule=Fill)
+      Parent="/Script/UMG.VerticalBox'RightArea'"
+      Content="/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C'WBP_Secondary_9'"
+   End Object
+   Begin Object Name="VerticalBoxSlot_1" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.RightArea.VerticalBoxSlot_1'"
+      Size=(SizeRule=Fill)
+      Parent="/Script/UMG.VerticalBox'RightArea'"
+      Content="/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C'WBP_Secondary_10'"
+   End Object
+   Begin Object Name="VerticalBoxSlot_2" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.RightArea.VerticalBoxSlot_2'"
+      Size=(SizeRule=Fill)
+      Parent="/Script/UMG.VerticalBox'RightArea'"
+      Content="/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C'WBP_Secondary_11'"
+   End Object
+   Begin Object Name="VerticalBoxSlot_3" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.RightArea.VerticalBoxSlot_3'"
+      Size=(SizeRule=Fill)
+      Parent="/Script/UMG.VerticalBox'RightArea'"
+      Content="/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C'WBP_Secondary_12'"
+   End Object
+   Begin Object Name="VerticalBoxSlot_4" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.RightArea.VerticalBoxSlot_4'"
+      Size=(SizeRule=Fill)
+      Parent="/Script/UMG.VerticalBox'RightArea'"
+      Content="/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C'WBP_Secondary_13'"
+   End Object
+   Begin Object Name="VerticalBoxSlot_5" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.RightArea.VerticalBoxSlot_5'"
+      Size=(SizeRule=Fill)
+      Parent="/Script/UMG.VerticalBox'RightArea'"
+      Content="/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C'WBP_Secondary_14'"
+   End Object
+   Begin Object Name="VerticalBoxSlot_6" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.RightArea.VerticalBoxSlot_6'"
+      Size=(SizeRule=Fill)
+      Parent="/Script/UMG.VerticalBox'RightArea'"
+      Content="/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C'WBP_Secondary_15'"
+   End Object
+   Begin Object Name="VerticalBoxSlot_7" ExportPath="/Script/UMG.VerticalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.RightArea.VerticalBoxSlot_7'"
+      Size=(SizeRule=Fill)
+      Parent="/Script/UMG.VerticalBox'RightArea'"
+      Content="/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C'WBP_Secondary_16'"
+   End Object
+   Slots(0)="/Script/UMG.VerticalBoxSlot'VerticalBoxSlot_0'"
+   Slots(1)="/Script/UMG.VerticalBoxSlot'VerticalBoxSlot_1'"
+   Slots(2)="/Script/UMG.VerticalBoxSlot'VerticalBoxSlot_2'"
+   Slots(3)="/Script/UMG.VerticalBoxSlot'VerticalBoxSlot_3'"
+   Slots(4)="/Script/UMG.VerticalBoxSlot'VerticalBoxSlot_4'"
+   Slots(5)="/Script/UMG.VerticalBoxSlot'VerticalBoxSlot_5'"
+   Slots(6)="/Script/UMG.VerticalBoxSlot'VerticalBoxSlot_6'"
+   Slots(7)="/Script/UMG.VerticalBoxSlot'VerticalBoxSlot_7'"
+   bIsVariable=True
+   bExpandedInDesigner=True
+   DisplayLabel="RightArea"
+End Object
+Begin Object Class=/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C Name="WBP_Secondary_9" ExportPath="/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.WBP_Secondary_9'"
+   bIsVariable=False
+   DisplayLabel="WBP_Secondary_9"
+End Object
+Begin Object Class=/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C Name="WBP_Secondary_10" ExportPath="/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.WBP_Secondary_10'"
+   bIsVariable=False
+   DisplayLabel="WBP_Secondary_10"
+End Object
+Begin Object Class=/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C Name="WBP_Secondary_11" ExportPath="/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.WBP_Secondary_11'"
+   bIsVariable=False
+   DisplayLabel="WBP_Secondary_11"
+End Object
+Begin Object Class=/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C Name="WBP_Secondary_12" ExportPath="/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.WBP_Secondary_12'"
+   bIsVariable=False
+   DisplayLabel="WBP_Secondary_12"
+End Object
+Begin Object Class=/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C Name="WBP_Secondary_13" ExportPath="/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.WBP_Secondary_13'"
+   bIsVariable=False
+   DisplayLabel="WBP_Secondary_13"
+End Object
+Begin Object Class=/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C Name="WBP_Secondary_14" ExportPath="/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.WBP_Secondary_14'"
+   bIsVariable=False
+   DisplayLabel="WBP_Secondary_14"
+End Object
+Begin Object Class=/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C Name="WBP_Secondary_15" ExportPath="/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.WBP_Secondary_15'"
+   bIsVariable=False
+   DisplayLabel="WBP_Secondary_15"
+End Object
+Begin Object Class=/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C Name="WBP_Secondary_16" ExportPath="/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.WBP_Secondary_16'"
+   bIsVariable=False
+   DisplayLabel="WBP_Secondary_16"
+End Object
+Begin Object Class=/Script/UMG.HorizontalBox Name="AvailablePoint" ExportPath="/Script/UMG.HorizontalBox'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.AvailablePoint'"
+   Begin Object Class=/Script/UMG.HorizontalBoxSlot Name="HorizontalBoxSlot_0" ExportPath="/Script/UMG.HorizontalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.AvailablePoint.HorizontalBoxSlot_0'"
+   End Object
+   Begin Object Class=/Script/UMG.HorizontalBoxSlot Name="HorizontalBoxSlot_1" ExportPath="/Script/UMG.HorizontalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.AvailablePoint.HorizontalBoxSlot_1'"
+   End Object
+   Begin Object Class=/Script/UMG.HorizontalBoxSlot Name="HorizontalBoxSlot_3" ExportPath="/Script/UMG.HorizontalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.AvailablePoint.HorizontalBoxSlot_3'"
+   End Object
+   Begin Object Class=/Script/UMG.HorizontalBoxSlot Name="HorizontalBoxSlot_5" ExportPath="/Script/UMG.HorizontalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.AvailablePoint.HorizontalBoxSlot_5'"
+   End Object
+   Begin Object Name="HorizontalBoxSlot_0" ExportPath="/Script/UMG.HorizontalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.AvailablePoint.HorizontalBoxSlot_0'"
+      VerticalAlignment=VAlign_Center
+      Parent="/Script/UMG.HorizontalBox'AvailablePoint'"
+      Content="/Script/UMG.TextBlock'AvailablePointsText'"
+   End Object
+   Begin Object Name="HorizontalBoxSlot_1" ExportPath="/Script/UMG.HorizontalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.AvailablePoint.HorizontalBoxSlot_1'"
+      VerticalAlignment=VAlign_Center
+      Parent="/Script/UMG.HorizontalBox'AvailablePoint'"
+      Content="/Script/UMG.TextBlock'AvailablePointsValue'"
+   End Object
+   Begin Object Name="HorizontalBoxSlot_3" ExportPath="/Script/UMG.HorizontalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.AvailablePoint.HorizontalBoxSlot_3'"
+      Size=(SizeRule=Fill)
+      HorizontalAlignment=HAlign_Right
+      VerticalAlignment=VAlign_Center
+      Parent="/Script/UMG.HorizontalBox'AvailablePoint'"
+      Content="/Script/UMG.HorizontalBox'Buttons'"
+   End Object
+   Begin Object Name="HorizontalBoxSlot_5" ExportPath="/Script/UMG.HorizontalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.AvailablePoint.HorizontalBoxSlot_5'"
+      Parent="/Script/UMG.HorizontalBox'AvailablePoint'"
+      Content="/Script/UMG.Spacer'Spacer'"
+   End Object
+   Slots(0)="/Script/UMG.HorizontalBoxSlot'HorizontalBoxSlot_0'"
+   Slots(1)="/Script/UMG.HorizontalBoxSlot'HorizontalBoxSlot_1'"
+   Slots(2)="/Script/UMG.HorizontalBoxSlot'HorizontalBoxSlot_3'"
+   Slots(3)="/Script/UMG.HorizontalBoxSlot'HorizontalBoxSlot_5'"
+   bExpandedInDesigner=True
+   DisplayLabel="AvailablePoint"
+End Object
+Begin Object Class=/Script/UMG.TextBlock Name="AvailablePointsText" ExportPath="/Script/UMG.TextBlock'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.AvailablePointsText'"
+   Text=NSLOCTEXT("[176EAA45DB63CAB57B675F8B22A99752]", "86A36B384F866F9A04FE0EBA6A3FB6FB", "Available Points:")
+   DisplayLabel="AvailablePointsText"
+End Object
+Begin Object Class=/Script/UMG.TextBlock Name="AvailablePointsValue" ExportPath="/Script/UMG.TextBlock'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.AvailablePointsValue'"
+   Text=NSLOCTEXT("[176EAA45DB63CAB57B675F8B22A99752]", "5BD842894D473F99AFCC719686D5B804", "99")
+   bIsVariable=True
+   DisplayLabel="AvailablePointsValue"
+End Object
+Begin Object Class=/Script/UMG.HorizontalBox Name="Buttons" ExportPath="/Script/UMG.HorizontalBox'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.Buttons'"
+   Begin Object Class=/Script/UMG.HorizontalBoxSlot Name="HorizontalBoxSlot_0" ExportPath="/Script/UMG.HorizontalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.Buttons.HorizontalBoxSlot_0'"
+   End Object
+   Begin Object Class=/Script/UMG.HorizontalBoxSlot Name="HorizontalBoxSlot_3" ExportPath="/Script/UMG.HorizontalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.Buttons.HorizontalBoxSlot_3'"
+   End Object
+   Begin Object Class=/Script/UMG.HorizontalBoxSlot Name="HorizontalBoxSlot_1" ExportPath="/Script/UMG.HorizontalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.Buttons.HorizontalBoxSlot_1'"
+   End Object
+   Begin Object Name="HorizontalBoxSlot_0" ExportPath="/Script/UMG.HorizontalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.Buttons.HorizontalBoxSlot_0'"
+      Parent="/Script/UMG.HorizontalBox'Buttons'"
+      Content="/Game/BPs/UI/Buttons/WBP_AddButton.WBP_AddButton_C'WBP_ResetButton'"
+   End Object
+   Begin Object Name="HorizontalBoxSlot_3" ExportPath="/Script/UMG.HorizontalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.Buttons.HorizontalBoxSlot_3'"
+      Parent="/Script/UMG.HorizontalBox'Buttons'"
+      Content="/Script/UMG.Spacer'Spacer_227'"
+   End Object
+   Begin Object Name="HorizontalBoxSlot_1" ExportPath="/Script/UMG.HorizontalBoxSlot'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.Buttons.HorizontalBoxSlot_1'"
+      Parent="/Script/UMG.HorizontalBox'Buttons'"
+      Content="/Game/BPs/UI/Buttons/WBP_AddButton.WBP_AddButton_C'WBP_SummitButton'"
+   End Object
+   Slots(0)="/Script/UMG.HorizontalBoxSlot'HorizontalBoxSlot_0'"
+   Slots(1)="/Script/UMG.HorizontalBoxSlot'HorizontalBoxSlot_3'"
+   Slots(2)="/Script/UMG.HorizontalBoxSlot'HorizontalBoxSlot_1'"
+   bExpandedInDesigner=True
+   DisplayLabel="Buttons"
+End Object
+Begin Object Class=/Game/BPs/UI/Buttons/WBP_AddButton.WBP_AddButton_C Name="WBP_ResetButton" ExportPath="/Game/BPs/UI/Buttons/WBP_AddButton.WBP_AddButton_C'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.WBP_ResetButton'"
+   SizeBoxWidth=50.000000
+   SizeBoxHeight=50.000000
+   ButtonText=NSLOCTEXT("[176EAA45DB63CAB57B675F8B22A99752]", "983430C8443BC7D3B86C52939EB064EC", "×")
+   TextBorderPadding=(Top=3.500000)
+   DisplayLabel="WBP_ResetButton"
+End Object
+Begin Object Class=/Script/UMG.Spacer Name="Spacer_227" ExportPath="/Script/UMG.Spacer'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.Spacer_227'"
+   Size=(X=10.000000,Y=1.000000)
+End Object
+Begin Object Class=/Game/BPs/UI/Buttons/WBP_AddButton.WBP_AddButton_C Name="WBP_SummitButton" ExportPath="/Game/BPs/UI/Buttons/WBP_AddButton.WBP_AddButton_C'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.WBP_SummitButton'"
+   SizeBoxWidth=50.000000
+   SizeBoxHeight=50.000000
+   ButtonText=NSLOCTEXT("[176EAA45DB63CAB57B675F8B22A99752]", "56729CD543913E2DA9F94AA8A768592D", "√")
+   In Font Info=(Size=22.500000)
+   TextBorderPadding=(Left=0.000000,Top=6.000000,Bottom=0.000000)
+   DisplayLabel="WBP_SummitButton"
+End Object
+Begin Object Class=/Script/UMG.Spacer Name="Spacer" ExportPath="/Script/UMG.Spacer'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.Spacer'"
+   Size=(X=10.000000,Y=1.000000)
+End Object
+Begin Object Class=/Game/BPs/UI/Buttons/WBP_CloseButton.WBP_CloseButton_C Name="CloseButton" ExportPath="/Game/BPs/UI/Buttons/WBP_CloseButton.WBP_CloseButton_C'/Game/BPs/UI/AttributesMenu/WBP_AttributesMenu.WBP_AttributesMenu:WidgetTree.CloseButton'"
+   ClickSound="/Script/Engine.SoundWave'/Game/Assets/Sounds/UI/ButtonClick/SFX_UI_ButtonClick_04.SFX_UI_ButtonClick_04'"
+   DisplayLabel="CloseButton"
+End Object

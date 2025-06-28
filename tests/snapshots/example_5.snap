@@ -1,0 +1,23 @@
+#### Event: WidgetControllerSet
+
+  if (cast(WidgetController as AttributesMenuController)):
+    declare AsAttributesMenuController: AttributesMenuController = cast(WidgetController as AttributesMenuController)
+    As Attributes Menu Controller = AsAttributesMenuController
+  for each (ArrayElement, ArrayIndex) in PrimaryRows.GetAllChildren():
+    if (cast(ArrayElement as PlayerUserWidget)):
+      declare AsPlayerUserWidget: PlayerUserWidget = cast(ArrayElement as PlayerUserWidget)
+      As Attributes Menu Controller.GetPrimaryRowController(Index: ArrayIndex)
+      AsPlayerUserWidget.SetWidgetController(InWidgetController: As Attributes Menu Controller.GetPrimaryRowController(Index: ArrayIndex))
+  for each (ArrayElement, ArrayIndex) in LeftArea.GetAllChildren():
+    if (cast(ArrayElement as PlayerUserWidget)):
+      declare AsPlayerUserWidget: PlayerUserWidget = cast(ArrayElement as PlayerUserWidget)
+      SecondaryRows.Array_AddUnique(self: "/Script/Engine.Default__KismetArrayLibrary", NewItem: AsPlayerUserWidget)
+  for each (ArrayElement, ArrayIndex) in RightArea.GetAllChildren():
+    if (cast(ArrayElement as PlayerUserWidget)):
+      declare AsPlayerUserWidget: PlayerUserWidget = cast(ArrayElement as PlayerUserWidget)
+      SecondaryRows.Array_AddUnique(self: "/Script/Engine.Default__KismetArrayLibrary", NewItem: AsPlayerUserWidget)
+  for each (ArrayElement, ArrayIndex) in SecondaryRows:
+    As Attributes Menu Controller.GetSecondaryRowController(Index: ArrayIndex)
+    ArrayElement.SetWidgetController(InWidgetController: As Attributes Menu Controller.GetSecondaryRowController(Index: ArrayIndex))
+  As Attributes Menu Controller.SetAvailablePointsText(InTextBlock: AvailablePointsValue)
+  As Attributes Menu Controller.UpdateUI()

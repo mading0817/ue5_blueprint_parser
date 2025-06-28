@@ -1,0 +1,11 @@
+#### Event: WidgetControllerSet
+
+  if (cast(WidgetController as AbilitiesEquippedPanelController)):
+    declare AsAbilitiesEquippedPanelController: AbilitiesEquippedPanelController = cast(WidgetController as AbilitiesEquippedPanelController)
+    As Abilities Equipped Panel Controller = AsAbilitiesEquippedPanelController
+  WBP_Ability_Button_with_Name_1.SetWidgetController(InWidgetController: As Abilities Equipped Panel Controller.SlotController1)
+  WBP_Ability_Button_with_Name_2.SetWidgetController(InWidgetController: As Abilities Equipped Panel Controller.SlotController2)
+  WBP_Ability_Button_with_Name_3.SetWidgetController(InWidgetController: As Abilities Equipped Panel Controller.SlotController3)
+  WBP_Ability_Button_with_Name_4.SetWidgetController(InWidgetController: As Abilities Equipped Panel Controller.SlotController4)
+  WBP_Ability_Button_with_Name_5.SetWidgetController(InWidgetController: As Abilities Equipped Panel Controller.SlotController5)
+  WBP_Ability_Button_with_Name_6.SetWidgetController(InWidgetController: As Abilities Equipped Panel Controller.SlotController6)

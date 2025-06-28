@@ -1,0 +1,24 @@
+#### Event: PreConstruct(IsDesignTime: bool)
+
+  WBP_SkillCategoryButtons.WBP_Equipped_Button.Button.OnClicked = "OnClicked_Event"
+  WBP_SkillCategoryButtons.WBP_All_Button.Button.OnClicked = "OnClicked_Event_0"
+  WBP_CloseButton.Button.OnClicked = "OnClicked_Event_1"
+
+#### Event: OnClicked_Event
+
+  Ability_Core_Aera_Switcher.SetActiveWidgetIndex(Index: "1")
+
+#### Event: OnClicked_Event_0
+
+  Ability_Core_Aera_Switcher.SetActiveWidgetIndex(Index: "0")
+
+#### Event: OnClicked_Event_1
+
+  ParentMenuAnchor.Close()
+
+#### Event: WidgetControllerSet
+
+  if (cast(WidgetController as AbilitiesMenuController)):
+    declare AsAbilitiesMenuController: AbilitiesMenuController = cast(WidgetController as AbilitiesMenuController)
+    As Abilities Menu Controller = AsAbilitiesMenuController
+  As Abilities Menu Controller.BindChildWidgets(InCoreAreaWidget: WBP_AbilitiesCoreArea, InEquippedPanelWidget: WBP_AbilitiesEquippedPanel)

@@ -24,7 +24,11 @@ from .models import (
     NodeProcessingResult
 )
 from .symbol_table import SymbolTable, Symbol
-from .utils import find_pin, create_source_location, get_pin_default_value, extract_pin_type
+from .common import find_pin, create_source_location, get_pin_default_value, extract_pin_type
+from .common import register_processor, node_processor_registry
+
+# 导入处理器模块以触发装饰器注册
+from . import processors
 
 
 # 节点处理器类型定义
@@ -47,57 +51,16 @@ class AnalysisContext:
     pending_continuation_pin: Optional['GraphPin'] = None  # 来自复杂节点（如 ForEachLoop）的延续执行引脚
 
 
-# 旧的AnalysisState类已被AnalysisContext替代
-
-
 class GraphAnalyzer:
     """
     蓝图图分析器
     负责将BlueprintGraph转换为逻辑AST
-    新架构：支持统一解析模型
+    新架构：支持统一解析模型和装饰器注册
     """
     
     def __init__(self):
-        # 初始化节点处理器注册表
-        self._node_processors: Dict[str, NodeProcessor] = {}
-        self._register_default_processors()
-    
-    def _register_default_processors(self):
-        """注册默认的节点处理器"""
-        # 使用简化的注册方式
-        processors = {
-            "K2Node_Event": self._process_generic_event_node,
-            "K2Node_CustomEvent": self._process_generic_event_node,
-            "K2Node_ComponentBoundEvent": self._process_generic_event_node,
-            "K2Node_VariableSet": self._process_variable_set,
-            "K2Node_CallFunction": self._process_call_function,
-            "K2Node_IfThenElse": self._process_if_then_else,
-            "K2Node_ExecutionSequence": self._process_execution_sequence,
-            "K2Node_MacroInstance": self._process_macro_instance,
-            "K2Node_LatentAbilityCall": self._process_latent_ability_call,
-            "K2Node_Knot": self._process_knot_node,
-            "K2Node_DynamicCast": self._process_dynamic_cast,
-            "K2Node_AssignDelegate": self._process_assign_delegate,
-            "K2Node_CallArrayFunction": self._process_call_array_function,
-        }
-        
-        # 注册简短名称和完整路径
-        for short_name, processor in processors.items():
-            self.register_processor(short_name, processor)
-            # 自动生成完整路径
-            if short_name.startswith("K2Node_"):
-                full_path = f"/Script/BlueprintGraph.{short_name}"
-                self.register_processor(full_path, processor)
-                    
-        # 特殊路径注册
-        self.register_processor("/Script/GameplayAbilitiesEditor.K2Node_LatentAbilityCall", 
-                               self._process_latent_ability_call)
-    
-    def register_processor(self, node_type: str, processor: NodeProcessor):
-        """
-        注册节点处理器
-        """
-        self._node_processors[node_type] = processor
+        # 使用全局注册表，不再维护私有注册表
+        pass
     
     # ========================================================================
     # 新架构核心方法：统一解析模型
@@ -173,7 +136,7 @@ class GraphAnalyzer:
     
     def _process_node(self, context: AnalysisContext, node: GraphNode) -> Optional[ASTNode]:
         """
-        处理单个节点，调用相应的处理器
+        处理单个节点，使用全局注册表查找处理器
         """
         if node.node_guid in context.visited_nodes:
             return None
@@ -181,10 +144,10 @@ class GraphAnalyzer:
         # 标记为已访问
         context.visited_nodes.add(node.node_guid)
         
-        # 查找对应的处理器
-        processor = self._node_processors.get(node.class_type)
+        # 从全局注册表查找处理器
+        processor = node_processor_registry.get_processor(node.class_type)
         if processor:
-            return processor(context, node)
+            return processor(self, context, node)
         else:
             # 未知节点类型，创建UnsupportedNode
             return UnsupportedNode(
@@ -192,1022 +155,6 @@ class GraphAnalyzer:
                 node_name=node.node_name,
                 source_location=create_source_location(node)
             )
-    
-    # ========================================================================
-    # 节点处理器实现
-    # ========================================================================
-    
-    def _process_generic_event_node(self, context: AnalysisContext, node: GraphNode) -> Optional[EventNode]:
-        """
-        通用事件节点处理器 - 支持多种事件节点类型
-        支持: K2Node_Event, K2Node_CustomEvent, K2Node_ComponentBoundEvent
-        """
-        # 根据节点类型提取事件名称
-        event_name = self._extract_event_name(node)
-        
-        # 自动提取事件参数
-        parameters = self._extract_event_parameters(node)
-        
-        # 创建事件节点
-        event_node = EventNode(
-            event_name=event_name,
-            parameters=parameters,
-            body=ExecutionBlock(),
-            source_location=create_source_location(node)
-        )
-        
-        # 查找执行输出引脚并跟随执行流
-        exec_pin = self._find_execution_output_pin(node)
-        if exec_pin:
-            self._follow_execution_flow(context, exec_pin, event_node.body.statements)
-        
-        # 将临时变量声明添加到事件体的开头
-        if context.scope_prelude:
-            event_node.body.statements = context.scope_prelude + event_node.body.statements
-        
-        return event_node
-    
-    def _extract_event_name(self, node: GraphNode) -> str:
-        """
-        根据节点类型提取事件名称
-        """
-        if 'K2Node_Event' in node.class_type:
-            # 标准事件节点：从EventReference.MemberName提取
-            event_ref = node.properties.get("EventReference", "")
-            if isinstance(event_ref, dict):
-                return event_ref.get("MemberName", node.node_name)
-            elif isinstance(event_ref, str) and "MemberName=" in event_ref:
-                import re
-                match = re.search(r'MemberName="([^"]+)"', event_ref)
-                return match.group(1) if match else node.node_name
-            else:
-                return node.node_name
-                
-        elif 'K2Node_CustomEvent' in node.class_type:
-            # 自定义事件节点：从CustomFunctionName提取
-            custom_function_name = node.properties.get("CustomFunctionName", "")
-            if isinstance(custom_function_name, str):
-                event_name = custom_function_name.strip('"') if custom_function_name else node.node_name
-            else:
-                event_name = node.node_name
-            
-            # 如果事件名称为空，使用节点名称
-            if not event_name or event_name == "K2Node_CustomEvent":
-                event_name = "CustomEvent"
-            return event_name
-            
-        elif 'K2Node_ComponentBoundEvent' in node.class_type:
-            # 组件绑定事件：组合ComponentPropertyName.DelegatePropertyName
-            component_name = node.properties.get("ComponentPropertyName", "")
-            delegate_name = node.properties.get("DelegatePropertyName", "")
-            
-            if component_name and delegate_name:
-                return f"{component_name}.{delegate_name}"
-            elif delegate_name:
-                return delegate_name
-            else:
-                return node.node_name
-        
-        # 默认情况
-        return node.node_name
-    
-    def _extract_event_parameters(self, node: GraphNode) -> List[Tuple[str, str]]:
-        """
-        自动提取事件参数 - 从非执行的输出引脚中提取
-        """
-        parameters = []
-        for pin in node.pins:
-            if pin.direction == "output" and pin.pin_type != "exec":
-                # 跳过隐藏的引脚和特殊引脚
-                if not getattr(pin, 'bHidden', False) and pin.pin_name not in ["OutputDelegate"]:
-                    parameters.append((pin.pin_name, pin.pin_type))
-        return parameters
-    
-    def _find_execution_output_pin(self, node: GraphNode) -> Optional['GraphPin']:
-        """
-        查找节点的执行输出引脚
-        """
-        # 优先查找标准的执行输出引脚
-        for pin_name in ["then", "exec"]:
-            pin = find_pin(node, pin_name, "output")
-            if pin:
-                return pin
-        
-        # 如果没找到，查找任何执行类型的输出引脚
-        for pin in node.pins:
-            if pin.direction == "output" and pin.pin_type == "exec":
-                return pin
-        
-        return None
-    
-
-    
-    def _extract_variable_reference(self, node: GraphNode) -> Tuple[str, bool]:
-        """提取变量引用信息的公共方法 - 修复版本"""
-        var_reference = node.properties.get("VariableReference", "")
-        var_name = "UnknownVariable"
-        is_self_context = True  # 默认值
-        
-        # 提取变量名
-        if isinstance(var_reference, dict):
-            var_name = var_reference.get("MemberName", "UnknownVariable")
-            is_self_context = var_reference.get("bSelfContext", True)
-        elif isinstance(var_reference, str) and "MemberName=" in var_reference:
-            import re
-            match = re.search(r'MemberName="([^"]+)"', var_reference)
-            var_name = match.group(1) if match else "UnknownVariable"
-            
-            # 检查 VariableReference 中的 bSelfContext
-            if "bSelfContext=True" in var_reference:
-                is_self_context = True
-            elif "bSelfContext=False" in var_reference:
-                is_self_context = False
-            else:
-                # 如果 VariableReference 中没有 bSelfContext，检查 SelfContextInfo
-                self_context_info = node.properties.get("SelfContextInfo", "")
-                is_self_context = self_context_info != "NotSelfContext"
-        else:
-            # 如果没有 VariableReference，检查 SelfContextInfo
-            self_context_info = node.properties.get("SelfContextInfo", "")
-            is_self_context = self_context_info != "NotSelfContext"
-        
-        return var_name, is_self_context
-
-    def _extract_function_reference(self, node: GraphNode) -> str:
-        """
-        从节点中提取函数引用信息
-        支持多种函数引用格式
-        """
-        # 尝试从 FunctionReference 属性获取
-        func_ref = node.properties.get("FunctionReference", "")
-        if isinstance(func_ref, dict):
-            member_name = func_ref.get("MemberName", "")
-            if member_name:
-                return member_name
-        elif isinstance(func_ref, str) and "MemberName=" in func_ref:
-            import re
-            match = re.search(r'MemberName="([^"]+)"', func_ref)
-            if match:
-                return match.group(1)
-        
-        # 回退到其他可能的属性
-        return (node.properties.get("FunctionName", "") or 
-                node.properties.get("ArrayFunction", "") or 
-                "UnknownFunction")
-
-    def _parse_function_arguments(self, context: AnalysisContext, node: GraphNode, 
-                                  exclude_pins: set = None) -> List[Tuple[str, Expression]]:
-        """
-        解析函数参数
-        排除执行引脚和指定的特殊引脚
-        
-        :param exclude_pins: 要排除的引脚名称集合，如果为None则使用默认排除列表
-        """
-        if exclude_pins is None:
-            exclude_pins = {"self"}  # 默认只排除self引脚
-        
-        arguments = []
-        
-        for pin in node.pins:
-            if (pin.direction == "input" and 
-                pin.pin_type not in ["exec"] and
-                pin.pin_name not in exclude_pins):
-                arg_expr = self._resolve_data_expression(context, pin)
-                arguments.append((pin.pin_name, arg_expr))
-        
-        return arguments
-
-    def _create_function_call_node(self, context: AnalysisContext, node: GraphNode, 
-                                   function_name: str, target_expr: Expression, 
-                                   arguments: List[Tuple[str, Expression]]) -> ASTNode:
-        """
-        创建函数调用节点的公共逻辑
-        根据是否有执行引脚决定返回FunctionCallNode还是FunctionCallExpression
-        """
-        # 检查是否有执行引脚（决定是语句还是表达式）
-        has_exec_pins = any(pin.pin_type == "exec" for pin in node.pins)
-        
-        if has_exec_pins:
-            # 有执行引脚，生成FunctionCallNode
-            return FunctionCallNode(
-                target=target_expr,
-                function_name=function_name,
-                arguments=arguments,
-                source_location=create_source_location(node)
-            )
-        else:
-            # 纯函数调用，生成FunctionCallExpression
-            return FunctionCallExpression(
-                target=target_expr,
-                function_name=function_name,
-                arguments=arguments,
-                source_location=create_source_location(node)
-            )
-
-    def _process_variable_set(self, context: AnalysisContext, node: GraphNode) -> Optional[AssignmentNode]:
-        """
-        处理变量赋值节点 - 增强版本
-        K2Node_VariableSet -> AssignmentNode
-        实现完整的数据流解析以正确识别目标对象
-        """
-        # 提取变量名
-        var_name, is_self_context = self._extract_variable_reference(node)
-        
-        # 查找值引脚（通常是和变量同名的输入引脚）
-        value_pin = find_pin(node, var_name, "input")
-        if not value_pin:
-            # 尝试查找任何非exec的输入引脚
-            for pin in node.pins:
-                if pin.direction == "input" and pin.pin_type != "exec":
-                    value_pin = pin
-                    break
-        
-        # 解析值表达式
-        value_expr = self._resolve_data_expression(context, value_pin) if value_pin else LiteralExpression(
-            value="null",
-            literal_type="null"
-        )
-        
-        # 关键修复：解析目标对象
-        # 检查 self 引脚以确定操作的真正目标
-        self_pin = find_pin(node, "self", "input")
-        
-        if self_pin and self_pin.linked_to and not is_self_context:
-            # 有 self 引脚连接且不是 SelfContext，说明这是对其他对象的属性赋值
-            # 使用数据流解析来找到真正的目标对象
-            target_object_expr = self._resolve_data_expression(context, self_pin)
-            
-            # 创建属性访问表达式作为赋值目标
-            target_expr = PropertyAccessNode(
-                target=target_object_expr,
-                property_name=var_name,
-                source_location=create_source_location(node)
-            )
-        else:
-            # 没有 self 引脚连接或是 SelfContext，这是对当前对象变量的赋值
-            target_expr = VariableGetExpression(
-                variable_name=var_name,
-                is_self_variable=is_self_context,
-                source_location=create_source_location(node)
-            )
-        
-        # 创建赋值节点
-        # 对于属性访问，不应该是本地变量声明
-        is_property_access = isinstance(target_expr, PropertyAccessNode)
-        assignment = AssignmentNode(
-            target=target_expr,
-            value_expression=value_expr,
-            is_local_variable=not is_self_context and not is_property_access,
-            source_location=create_source_location(node)
-        )
-        
-        return assignment
-    
-    def _process_call_array_function(self, context: AnalysisContext, node: GraphNode) -> Optional[ASTNode]:
-        """
-        处理数组函数调用节点
-        K2Node_CallArrayFunction -> FunctionCallNode or FunctionCallExpression
-        使用重构后的公共逻辑减少代码重复
-        """
-        # 提取函数名称（数组函数的特殊处理）
-        function_name = self._extract_function_reference(node)
-        
-        # 查找目标数组引脚（数组函数的特殊目标引脚）
-        target_pin = find_pin(node, "TargetArray", "input")
-        if not target_pin:
-            target_pin = find_pin(node, "Array", "input")
-        
-        target_expr = None
-        if target_pin:
-            target_expr = self._resolve_data_expression(context, target_pin)
-        
-        # 解析函数参数（使用公共逻辑，排除数组函数的特殊引脚）
-        exclude_pins = {"TargetArray", "Array"}
-        arguments = self._parse_function_arguments(context, node, exclude_pins)
-        
-        # 使用公共逻辑创建函数调用节点
-        return self._create_function_call_node(context, node, function_name, target_expr, arguments)
-
-    def _build_property_access_expression(self, context: AnalysisContext, node: GraphNode) -> Expression:
-        """
-        构建属性访问表达式，支持递归解析嵌套访问链
-        K2Node_VariableGet -> VariableGetExpression 或 PropertyAccessNode
-        """
-        # 提取当前节点的变量名
-        var_name, is_self_context = self._extract_variable_reference(node)
-        
-        # 检查是否有 self 引脚连接（表示这是一个属性访问）
-        self_pin = find_pin(node, "self", "input")
-        
-        if self_pin and self_pin.linked_to:
-            # 有 self 引脚连接，递归解析基础对象
-            base_expression = self._resolve_data_expression(context, self_pin)
-            
-            # 创建属性访问节点
-            return PropertyAccessNode(
-                target=base_expression,
-                property_name=var_name,
-                source_location=create_source_location(node),
-                ue_type="property_access"
-            )
-        else:
-            # 没有 self 引脚连接，这是一个顶级变量
-            return VariableGetExpression(
-                variable_name=var_name,
-                is_self_variable=is_self_context,
-                source_location=create_source_location(node),
-                ue_type="variable_reference"
-            )
-    
-    def _process_call_function(self, context: AnalysisContext, node: GraphNode) -> Optional[ASTNode]:
-        """
-        处理函数调用节点
-        使用重构后的公共逻辑减少代码重复
-        """
-        # 提取函数信息（使用公共逻辑）
-        func_name = self._extract_function_reference(node)
-        
-        # 解析目标对象（self引脚，普通函数调用的特殊处理）
-        target_expr = None
-        self_pin = find_pin(node, "self", "input")
-        if self_pin and self_pin.linked_to:
-            target_expr = self._resolve_data_expression(context, self_pin)
-        
-        # 解析参数（使用公共逻辑）
-        arguments = self._parse_function_arguments(context, node)
-        
-        # 使用公共逻辑创建函数调用节点
-        call_node = self._create_function_call_node(context, node, func_name, target_expr, arguments)
-        
-        # 处理返回值赋值（保留原有的特殊逻辑）
-        if isinstance(call_node, FunctionCallNode):
-            for pin in node.pins:
-                if pin.direction == "output" and pin.pin_type != "exec":
-                    # 返回值处理暂未实现
-                    pass
-        
-        return call_node
-    
-    def _process_if_then_else(self, context: AnalysisContext, node: GraphNode) -> Optional[BranchNode]:
-        """
-        处理分支节点
-        K2Node_IfThenElse -> BranchNode
-        """
-        # 查找条件引脚
-        condition_pin = find_pin(node, "Condition", "input")
-        condition_expr = self._resolve_data_expression(context, condition_pin) if condition_pin else LiteralExpression(
-            value="true",
-            literal_type="bool"
-        )
-        
-        # 创建分支节点
-        branch_node = BranchNode(
-            condition=condition_expr,
-            true_branch=ExecutionBlock(),
-            false_branch=ExecutionBlock(),
-            source_location=create_source_location(node)
-        )
-        
-        # 处理true分支
-        true_pin = find_pin(node, "then", "output")
-        if not true_pin:
-            true_pin = find_pin(node, "true", "output")
-        if true_pin:
-            self._follow_execution_flow(context, true_pin, branch_node.true_branch.statements)
-        
-        # 处理false分支
-        false_pin = find_pin(node, "else", "output")
-        if not false_pin:
-            false_pin = find_pin(node, "false", "output")
-        if false_pin:
-            self._follow_execution_flow(context, false_pin, branch_node.false_branch.statements)
-        
-        return branch_node
-    
-    def _process_execution_sequence(self, context: AnalysisContext, node: GraphNode) -> Optional[ExecutionBlock]:
-        """
-        处理执行序列节点
-        K2Node_ExecutionSequence -> ExecutionBlock (包含多个执行流)
-        """
-        # 执行序列节点会有多个输出执行引脚，按顺序执行
-        sequence_block = ExecutionBlock(source_location=create_source_location(node))
-        
-        # 查找所有输出执行引脚，按名称排序
-        output_exec_pins = []
-        for pin in node.pins:
-            if pin.direction == "output" and pin.pin_type == "exec":
-                output_exec_pins.append(pin)
-        
-        # 按引脚名称排序（通常是 "then 0", "then 1", "then 2" 等）
-        output_exec_pins.sort(key=lambda p: p.pin_name)
-        
-        # 依次处理每个输出执行流
-        for pin in output_exec_pins:
-            if pin.linked_to:
-                self._follow_execution_flow(context, pin, sequence_block.statements)
-        
-        return sequence_block
-    
-    def _process_macro_instance(self, context: AnalysisContext, node: GraphNode) -> Optional[ASTNode]:
-        """
-        处理宏实例节点 - 适配新架构
-        K2Node_MacroInstance -> 根据宏类型返回不同的AST节点
-        
-        !WARNING! 这是一个临时的适配器方法。由于 _process_foreach_macro 现在返回 NodeProcessingResult，
-        而其他处理器仍然返回 ASTNode，我们需要在这里进行适配。
-        """
-        # 获取宏图引用信息
-        macro_ref = node.properties.get("MacroGraphReference", {})
-        if isinstance(macro_ref, dict):
-            macro_graph = macro_ref.get("MacroGraph", "")
-        elif isinstance(macro_ref, str):
-            macro_graph = macro_ref
-        else:
-            macro_graph = ""
-        
-        # 根据宏类型处理
-        if "ForEachLoop" in macro_graph or "ForEach" in macro_graph:
-            # ForEachLoop 返回 NodeProcessingResult，需要特殊处理
-            result = self._process_foreach_macro(context, node)
-            # 将 continuation_pin 存储到上下文中，稍后在 _follow_execution_flow 中处理
-            context.pending_continuation_pin = result.continuation_pin
-            return result.node
-        elif "WhileLoop" in macro_graph or "While" in macro_graph:
-            return self._process_while_macro(context, node)
-        else:
-            # 未知宏类型，作为函数调用处理
-            return self._process_generic_macro(context, node)
-    
-    def _process_foreach_macro(self, context: AnalysisContext, node: GraphNode) -> NodeProcessingResult:
-        """
-        处理ForEach循环宏 - 重构版本
-        返回 NodeProcessingResult 以支持完整的执行流追踪
-        """
-        # 查找数组输入引脚
-        array_pin = find_pin(node, "Array", "input")
-        collection_expr = self._resolve_data_expression(context, array_pin) if array_pin else LiteralExpression(
-            value="[]",
-            literal_type="array"
-        )
-        
-        # 获取循环输出引脚，用于建立 pin→AST 映射
-        element_pin = find_pin(node, "Array Element", "output")
-        index_pin = find_pin(node, "Array Index", "output")
-        
-        # 创建 LoopVariableExpression 实例
-        loop_id = node.node_guid  # 使用节点 GUID 作为循环 ID
-        element_expr = LoopVariableExpression(
-            variable_name="ArrayElement",
-            is_index=False,
-            loop_id=loop_id
-        )
-        index_expr = LoopVariableExpression(
-            variable_name="ArrayIndex", 
-            is_index=True,
-            loop_id=loop_id
-        )
-        
-        # 建立 pin→AST 映射，解决 UnknownFunction 问题
-        if element_pin:
-            context.pin_ast_map[element_pin.pin_id] = element_expr
-        if index_pin:
-            context.pin_ast_map[index_pin.pin_id] = index_expr
-        
-        # 创建循环变量声明
-        item_declaration = VariableDeclaration(
-            variable_name="ArrayElement",
-            variable_type="auto",  # 类型从集合元素推断
-            is_loop_variable=True
-        )
-        
-        index_declaration = VariableDeclaration(
-            variable_name="ArrayIndex",
-            variable_type="int",
-            is_loop_variable=True
-        )
-        
-        # 创建循环节点
-        loop_node = LoopNode(
-            loop_type=LoopType.FOR_EACH,
-            collection_expression=collection_expr,
-            item_declaration=item_declaration,
-            index_declaration=index_declaration,
-            body=ExecutionBlock(),
-            source_location=create_source_location(node)
-        )
-        
-        # 在新作用域中处理循环体
-        with context.symbol_table.scoped():
-            # 定义循环变量，关联 LoopVariableExpression 作为值
-            context.symbol_table.define(
-                "ArrayElement", "auto", 
-                declaration=item_declaration,
-                value=element_expr,
-                is_loop_variable=True
-            )
-            context.symbol_table.define(
-                "ArrayIndex", "int", 
-                declaration=index_declaration,
-                value=index_expr,
-                is_loop_variable=True
-            )
-            
-            # 处理循环体
-            loop_body_pin = find_pin(node, "LoopBody", "output")
-            if loop_body_pin:
-                self._follow_execution_flow(context, loop_body_pin, loop_node.body.statements)
-        
-        # 关键修复：查找并返回 Completed 引脚，以便主执行流可以继续
-        completed_pin = find_pin(node, "Completed", "output")
-        
-        return NodeProcessingResult(
-            node=loop_node,
-            continuation_pin=completed_pin  # 这是解决执行流不完整问题的关键
-        )
-    
-    def _process_while_macro(self, context: AnalysisContext, node: GraphNode) -> Optional[LoopNode]:
-        """
-        处理While循环宏
-        """
-        # 查找条件引脚
-        condition_pin = find_pin(node, "Condition", "input")
-        condition_expr = self._resolve_data_expression(context, condition_pin) if condition_pin else LiteralExpression(
-            value="true",
-            literal_type="bool"
-        )
-        
-        # 创建循环节点
-        loop_node = LoopNode(
-            loop_type=LoopType.WHILE,
-            condition_expression=condition_expr,
-            body=ExecutionBlock(),
-            source_location=create_source_location(node)
-        )
-        
-        # 处理循环体
-        loop_body_pin = find_pin(node, "LoopBody", "output")
-        if loop_body_pin:
-            self._follow_execution_flow(context, loop_body_pin, loop_node.body.statements)
-        
-        return loop_node
-    
-    def _process_generic_macro(self, context: AnalysisContext, node: GraphNode) -> Optional[FunctionCallNode]:
-        """
-        处理通用宏实例（作为函数调用）
-        """
-        # 提取宏名称
-        macro_ref = node.properties.get("MacroGraphReference", {})
-        if isinstance(macro_ref, dict):
-            macro_name = macro_ref.get("MacroGraph", "UnknownMacro")
-        else:
-            macro_name = str(macro_ref)
-        
-        # 简化宏名称
-        if "/" in macro_name:
-            macro_name = macro_name.split("/")[-1]
-        
-        # 解析参数
-        arguments = []
-        for pin in node.pins:
-            if (pin.direction == "input" and 
-                pin.pin_type not in ["exec", "delegate"]):
-                arg_expr = self._resolve_data_expression(context, pin)
-                arguments.append((pin.pin_name, arg_expr))
-        
-        return FunctionCallNode(
-            target=None,
-            function_name=f"macro_{macro_name}",
-            arguments=arguments,
-            source_location=create_source_location(node)
-        )
-    
-    def _process_latent_ability_call(self, context: AnalysisContext, node: GraphNode) -> Optional[LatentActionNode]:
-        """
-        处理潜在动作节点 - 修复版本
-        K2Node_LatentAbilityCall -> LatentActionNode
-        正确处理回调的数据输出引脚，解决 UnknownFunction 问题
-        """
-        # 提取动作名称
-        proxy_factory_func = node.properties.get("ProxyFactoryFunctionName", "UnknownAction")
-        # 移除可能存在的引号
-        if isinstance(proxy_factory_func, str):
-            proxy_factory_func = proxy_factory_func.strip('"')
-        
-        # 解析目标对象（self引脚）
-        target_expr = None
-        self_pin = find_pin(node, "self", "input")
-        if self_pin and self_pin.linked_to:
-            target_expr = self._resolve_data_expression(context, self_pin)
-        
-        # 解析参数
-        arguments = []
-        for pin in node.pins:
-            if (pin.direction == "input" and 
-                pin.pin_type not in ["exec", "delegate"] and
-                pin.pin_name not in ["self", "OwningAbility"]):
-                arg_expr = self._resolve_data_expression(context, pin)
-                arguments.append((pin.pin_name, arg_expr))
-        
-        # 创建函数调用节点
-        call_node = FunctionCallNode(
-            target=target_expr,
-            function_name=proxy_factory_func,
-            arguments=arguments,
-            source_location=create_source_location(node)
-        )
-        
-        # 创建回调执行引脚字典
-        callback_exec_pins = {}
-        for pin in node.pins:
-            if pin.direction == "output" and pin.pin_type == "exec":
-                if pin.pin_name != "then":  # "then"是主执行流，不算回调
-                    # 关键修复：识别与该回调执行引脚一同输出的数据引脚
-                    callback_data_pins = []
-                    for data_pin in node.pins:
-                        if (data_pin.direction == "output" and 
-                            data_pin.pin_type not in ["exec"] and
-                            data_pin.pin_name not in ["AsyncTaskProxy"]):  # 排除异步任务代理引脚
-                            callback_data_pins.append(data_pin)
-                    
-                    # 为每个数据引脚创建变量声明
-                    callback_declarations = []
-                    for data_pin in callback_data_pins:
-                        var_declaration = VariableDeclaration(
-                            variable_name=data_pin.pin_name,
-                            variable_type=data_pin.pin_type,
-                            is_callback_parameter=True,
-                            source_location=create_source_location(node)
-                        )
-                        callback_declarations.append(var_declaration)
-                        
-                        # 关键修复：将数据引脚注册到 pin_ast_map 中
-                        # 创建对应的变量获取表达式
-                        var_expr = VariableGetExpression(
-                            variable_name=data_pin.pin_name,
-                            is_self_variable=False,  # 回调参数不是self变量
-                            source_location=create_source_location(node)
-                        )
-                        context.pin_ast_map[data_pin.pin_id] = var_expr
-                    
-                    # 创建CallbackBlock
-                    callback_block = CallbackBlock(declarations=callback_declarations)
-                    
-                    # 在新作用域中处理回调体
-                    with context.symbol_table.scoped():
-                        # 定义回调参数到符号表
-                        for declaration in callback_declarations:
-                            context.symbol_table.define(
-                                declaration.variable_name,
-                                declaration.variable_type,
-                                declaration=declaration,
-                                is_callback_parameter=True
-                            )
-                        
-                        # 处理回调执行流
-                        self._follow_execution_flow(context, pin, callback_block.statements)
-                    
-                    callback_exec_pins[pin.pin_name] = callback_block
-        
-        # 创建潜在动作节点
-        latent_node = LatentActionNode(
-            call=call_node,
-            callback_exec_pins=callback_exec_pins,
-            source_location=create_source_location(node)
-        )
-        
-        return latent_node
-    
-    def _process_knot_node(self, context: AnalysisContext, node: GraphNode) -> Optional[ASTNode]:
-        """
-        处理连接节点（透传节点）
-        K2Node_Knot 只是传递数据，不产生AST节点
-        """
-        # Knot节点不产生AST，只是数据的透传
-        # 在_resolve_data_expression中会正确处理连接关系
-        return None
-    
-    # ========================================================================
-    # 新增节点处理器实现
-    # ========================================================================
-    
-    def _process_custom_event(self, context: AnalysisContext, node: GraphNode) -> Optional[EventNode]:
-        """
-        处理自定义事件节点
-        K2Node_CustomEvent -> EventNode
-        """
-        # 提取自定义事件名称
-        custom_function_name = node.properties.get("CustomFunctionName", "")
-        if isinstance(custom_function_name, str):
-            event_name = custom_function_name.strip('"') if custom_function_name else node.node_name
-        else:
-            event_name = node.node_name
-        
-        # 如果事件名称为空，使用节点名称
-        if not event_name or event_name == "K2Node_CustomEvent":
-            event_name = "CustomEvent"
-        
-                    # 自定义事件参数解析暂未实现
-        # 自定义事件可能有输入参数，需要从输入引脚中提取
-        parameters = []
-        for pin in node.pins:
-            if pin.direction == "input" and pin.pin_type not in ["exec"]:
-                # 跳过执行引脚，其他输入引脚作为参数
-                parameters.append((pin.pin_name, pin.pin_type))
-        
-        # 创建事件节点
-        event_node = EventNode(
-            event_name=event_name,
-            parameters=parameters,
-            body=ExecutionBlock(),
-            source_location=create_source_location(node)
-        )
-        
-        # 跟随执行流构建事件体
-        exec_pin = find_pin(node, "then", "output")
-        if not exec_pin:
-            # 某些自定义事件可能使用不同的执行输出引脚名称
-            for pin in node.pins:
-                if pin.direction == "output" and pin.pin_type == "exec":
-                    exec_pin = pin
-                    break
-        
-        if exec_pin:
-            self._follow_execution_flow(context, exec_pin, event_node.body.statements)
-        
-        # 将临时变量声明添加到事件体的开头
-        if context.scope_prelude:
-            event_node.body.statements = context.scope_prelude + event_node.body.statements
-        
-        return event_node
-    
-    def _process_dynamic_cast(self, context: AnalysisContext, node: GraphNode) -> Optional[BranchNode]:
-        """
-        处理动态类型转换节点 - 战略重构版本
-        K2Node_DynamicCast -> BranchNode (条件分支节点，正确反映其本质逻辑)
-        
-        Dynamic Cast本质上是一个条件分支：
-        if (cast successful) {
-            // 声明转换后的变量并执行then分支
-            AsTargetType = cast(source)
-            // 后续执行流...
-        } else {
-            // 执行CastFailed分支
-        }
-        """
-        # 第一步：提取目标类型信息
-        target_type = node.properties.get("TargetType", "")
-        if isinstance(target_type, dict):
-            # 如果是复杂对象，尝试提取类型名称
-            target_type_name = target_type.get("ObjectName", "") or target_type.get("ClassName", "")
-        elif isinstance(target_type, str):
-            # 如果是字符串，可能包含类型路径，提取类名
-            if "'" in target_type:
-                # 格式如: /Script/CoreUObject.Class'/Script/XiangYang.AttributesMenuController'
-                parts = target_type.split("'")
-                if len(parts) >= 2:
-                    class_path = parts[-2]  # 取倒数第二个部分
-                    target_type_name = class_path.split(".")[-1]  # 取最后一个点后的部分
-                else:
-                    target_type_name = target_type
-            else:
-                target_type_name = target_type
-        else:
-            target_type_name = "UnknownType"
-        
-        # 第二步：查找输入对象引脚并解析源表达式
-        object_pin = find_pin(node, "Object", "input")
-        if not object_pin:
-            # 尝试查找任何非exec的输入引脚
-            for pin in node.pins:
-                if pin.direction == "input" and pin.pin_type not in ["exec"]:
-                    object_pin = pin
-                    break
-        
-        # 解析输入对象表达式
-        source_expr = self._resolve_data_expression(context, object_pin) if object_pin else LiteralExpression(
-            value="null", literal_type="null"
-        )
-        
-        # 第三步：创建类型转换表达式作为条件
-        cast_expr = CastExpression(
-            source_expression=source_expr,
-            target_type=target_type_name,
-            source_location=create_source_location(node)
-        )
-        
-        # 第四步：构建true分支（转换成功）
-        true_branch = ExecutionBlock(source_location=create_source_location(node))
-        
-        # 在true分支中，首先声明转换后的变量
-        output_var_name = f"As{target_type_name}"  # 遵循UE蓝图的命名约定
-        var_declaration = VariableDeclaration(
-            variable_name=output_var_name,
-            variable_type=target_type_name,
-            initial_value=cast_expr,  # 变量的初始值就是转换表达式
-            is_loop_variable=False,
-            is_callback_parameter=False,
-            source_location=create_source_location(node)
-        )
-        true_branch.statements.append(var_declaration)
-        
-        # 然后跟随then引脚的执行流
-        then_pin = find_pin(node, "then", "output")
-        if then_pin and then_pin.linked_to:
-            self._follow_execution_flow(context, then_pin, true_branch.statements)
-        
-        # 第五步：构建false分支（转换失败）
-        false_branch = ExecutionBlock(source_location=create_source_location(node))
-        
-        # 跟随CastFailed引脚的执行流
-        cast_failed_pin = find_pin(node, "CastFailed", "output")
-        if cast_failed_pin and cast_failed_pin.linked_to:
-            self._follow_execution_flow(context, cast_failed_pin, false_branch.statements)
-        
-        # 第六步：创建分支节点
-        branch_node = BranchNode(
-            condition=cast_expr,  # 转换表达式本身作为条件
-            true_branch=true_branch,
-            false_branch=false_branch if false_branch.statements else None,  # 如果false分支为空则设为None
-            source_location=create_source_location(node)
-        )
-        
-        return branch_node
-    
-    def _process_assign_delegate(self, context: AnalysisContext, node: GraphNode) -> Optional[AssignmentNode]:
-        """
-        处理委托赋值节点 - 新架构版本
-        K2Node_AssignDelegate -> AssignmentNode (delegate assignment)
-        支持复杂的委托目标表达式，如 CloseButton.Button.OnClicked = MyEvent
-        """
-        # 第一步：解析委托属性信息
-        delegate_reference = node.properties.get("DelegateReference", "")
-        delegate_name = "UnknownDelegate"
-        
-        if isinstance(delegate_reference, str) and "MemberName=" in delegate_reference:
-            import re
-            match = re.search(r'MemberName="([^"]+)"', delegate_reference)
-            if match:
-                delegate_name = match.group(1)
-        
-        # 第二步：解析赋值目标（左值）- 通过self引脚
-        self_pin = find_pin(node, "self", "input")
-        if not self_pin:
-            # 兼容性：尝试查找Target引脚
-            self_pin = find_pin(node, "Target", "input")
-        
-        if self_pin:
-            # 解析目标对象表达式
-            target_object_expr = self._resolve_data_expression(context, self_pin)
-            # 创建属性访问表达式：TargetObject.DelegateName
-            target_expr = PropertyAccessNode(
-                target=target_object_expr,
-                property_name=delegate_name,
-                source_location=create_source_location(node)
-            )
-        else:
-            # 如果没有self引脚，假设是简单变量赋值
-            target_expr = VariableGetExpression(
-                variable_name=delegate_name,
-                source_location=create_source_location(node)
-            )
-        
-        # 第三步：解析赋值源（右值）- 通过Delegate引脚
-        delegate_pin = find_pin(node, "Delegate", "input")
-        if not delegate_pin:
-            # 尝试查找Event引脚
-            delegate_pin = find_pin(node, "Event", "input")
-        
-        if delegate_pin:
-            # 解析委托源表达式
-            value_expr = self._resolve_data_expression(context, delegate_pin)
-        else:
-            # 如果没有找到委托引脚，创建一个未知表达式
-            value_expr = LiteralExpression(
-                value="UnknownDelegate",
-                literal_type="delegate",
-                source_location=create_source_location(node)
-            )
-        
-        # 第四步：创建增强的赋值节点
-        assignment = AssignmentNode(
-            target=target_expr,  # 使用新的target字段
-            value_expression=value_expr,
-            is_local_variable=False,  # 委托通常是成员变量
-            source_location=create_source_location(node)
-        )
-        
-        return assignment
-    
-
-    
-    def _infer_callback_parameters(self, callback_name: str, node: GraphNode) -> List[VariableDeclaration]:
-        """
-        根据回调名称推断可能的参数声明
-        """
-        declarations = []
-        
-        # 基于常见的回调模式推断参数
-        if "EventReceived" in callback_name:
-            # WaitGameplayEvent的EventReceived回调通常有Payload参数
-            # 首先声明主Payload变量
-            declarations.append(VariableDeclaration(
-                variable_name="Payload",
-                variable_type="GameplayEventData",
-                is_callback_parameter=True
-            ))
-            
-            # 然后声明Payload的所有子字段作为独立变量
-            for pin in node.pins:
-                if (pin.direction == "output" and 
-                    pin.pin_type not in ["exec"] and
-                    pin.pin_name.startswith("Payload_")):
-                    # 提取字段名（移除"Payload_"前缀）
-                    field_name = pin.pin_name[8:]  # 移除"Payload_"
-                    # 创建完整的变量名（保持原始格式以便查找）
-                    var_name = f"Payload {field_name.replace('_', ' ')}"
-                    declarations.append(VariableDeclaration(
-                        variable_name=var_name,
-                        variable_type="auto",
-                        is_callback_parameter=True
-                    ))
-        elif "Completed" in callback_name:
-            # 完成回调通常没有额外参数
-            pass
-        elif "Cancelled" in callback_name:
-            # 取消回调通常没有额外参数
-            pass
-        else:
-            # 对于未知回调类型，检查是否有相关的输出数据引脚
-            for pin in node.pins:
-                if (pin.direction == "output" and 
-                    pin.pin_type not in ["exec"] and
-                    callback_name.lower() in pin.pin_name.lower()):
-                    declarations.append(VariableDeclaration(
-                        variable_name=pin.pin_name,
-                        variable_type="auto",
-                        is_callback_parameter=True
-                    ))
-        
-        return declarations
-    
-    def _try_resolve_from_symbol_table(self, context: AnalysisContext, source_node: GraphNode, source_pin_id: str) -> Optional[Expression]:
-        """
-        尝试从符号表解析表达式
-        检查源节点是否对应符号表中的变量
-        """
-        # 如果是变量获取节点，检查变量名是否在符号表中
-        if 'K2Node_VariableGet' in source_node.class_type:
-            var_reference = source_node.properties.get("VariableReference", "")
-            var_name = ""
-            
-            if isinstance(var_reference, dict):
-                var_name = var_reference.get("MemberName", "")
-            elif isinstance(var_reference, str) and "MemberName=" in var_reference:
-                import re
-                match = re.search(r'MemberName="([^"]+)"', var_reference)
-                var_name = match.group(1) if match else ""
-            
-            if var_name:
-                symbol = context.symbol_table.lookup(var_name)
-                if symbol:
-                    return VariableGetExpression(
-                        variable_name=symbol.name,
-                        is_self_variable=not (symbol.is_loop_variable or symbol.is_callback_parameter)
-                    )
-        
-        # 检查是否有输出引脚名称匹配符号表中的变量
-        for pin in source_node.pins:
-            if pin.direction == "output" and pin.pin_id == source_pin_id:
-                # 直接匹配引脚名称
-                symbol = context.symbol_table.lookup(pin.pin_name)
-                if symbol:
-                    return VariableGetExpression(
-                        variable_name=symbol.name,
-                        is_self_variable=not (symbol.is_loop_variable or symbol.is_callback_parameter)
-                    )
-                
-                # 特殊处理：如果是Payload_字段，尝试转换为"Payload FieldName"格式
-                if pin.pin_name.startswith("Payload_"):
-                    field_name = pin.pin_name[8:]  # 移除"Payload_"
-                    var_name = f"Payload {field_name.replace('_', ' ')}"
-                    symbol = context.symbol_table.lookup(var_name)
-                    if symbol:
-                        return VariableGetExpression(
-                            variable_name=symbol.name,
-                            is_self_variable=not (symbol.is_loop_variable or symbol.is_callback_parameter)
-                        )
-                
-                # 特殊处理：ForEach循环的Array Element
-                if pin.pin_name == "Array Element" and 'K2Node_MacroInstance' in source_node.class_type:
-                    # 检查是否在ForEach循环的作用域中
-                    symbol = context.symbol_table.lookup("ArrayElement")
-                    if symbol:
-                        return VariableGetExpression(
-                            variable_name=symbol.name,
-                            is_self_variable=False
-                        )
-        
-        return None
     
     # ========================================================================
     # 辅助方法
@@ -1409,8 +356,6 @@ class GraphAnalyzer:
             return False
         return True
     
-# 旧的临时变量方法已被新的context-aware方法替代
-    
     def _generate_temp_variable_name(self, context: AnalysisContext, source_node: GraphNode, source_pin_id: str) -> str:
         """
         生成临时变量名
@@ -1476,17 +421,14 @@ class GraphAnalyzer:
                 if isinstance(expr, FunctionCallExpression):
                     return expr
         
-        # K2Node_Literal - 字面量
-        elif 'K2Node_Literal' in node.class_type:
-            return self._process_literal_node(node)
-        
-        # K2Node_MathExpression - 数学表达式
-        elif 'K2Node_MathExpression' in node.class_type:
-            return self._process_math_expression_node(context, node)
-        
-        # K2Node_GetArrayItem - 数组访问
-        elif 'K2Node_GetArrayItem' in node.class_type:
-            return self._process_array_access_node(context, node)
+        # K2Node_Literal, K2Node_MathExpression, K2Node_GetArrayItem 现在通过注册表处理
+        elif ('K2Node_Literal' in node.class_type or 
+              'K2Node_MathExpression' in node.class_type or 
+              'K2Node_GetArrayItem' in node.class_type):
+            # 尝试通过注册表处理
+            result = self._process_node(context, node)
+            if result and hasattr(result, 'accept'):  # 检查是否是表达式
+                return result
         
         # K2Node_DynamicCast - 动态类型转换（返回转换后的变量引用）
         elif 'K2Node_DynamicCast' in node.class_type:
@@ -1561,55 +503,312 @@ class GraphAnalyzer:
             source_location=create_source_location(node)
         )
     
-    def _process_literal_node(self, node: GraphNode) -> LiteralExpression:
-        """
-        处理字面量节点
-        """
-        # 尝试从节点属性中提取字面量值
-        literal_value = node.properties.get("Value", node.properties.get("DefaultValue", "null"))
-        literal_type = "unknown"  # 基于引脚类型的类型推断暂未实现
-        
-        return LiteralExpression(
-            value=str(literal_value),
-            literal_type=literal_type
-        )
+
     
-    def _process_math_expression_node(self, context: AnalysisContext, node: GraphNode) -> FunctionCallExpression:
+    def _infer_callback_parameters(self, callback_name: str, node: GraphNode) -> List[VariableDeclaration]:
         """
-        处理数学表达式节点
+        根据回调名称推断可能的参数声明
         """
-        # 数学表达式节点通常有操作符属性
-        op = node.properties.get("Op", "+")
+        declarations = []
         
-        # 查找输入引脚
-        inputs = []
+        # 基于常见的回调模式推断参数
+        if "EventReceived" in callback_name:
+            # WaitGameplayEvent的EventReceived回调通常有Payload参数
+            # 首先声明主Payload变量
+            declarations.append(VariableDeclaration(
+                variable_name="Payload",
+                variable_type="GameplayEventData",
+                is_callback_parameter=True
+            ))
+            
+            # 然后声明Payload的所有子字段作为独立变量
+            for pin in node.pins:
+                if (pin.direction == "output" and 
+                    pin.pin_type not in ["exec"] and
+                    pin.pin_name.startswith("Payload_")):
+                    # 提取字段名（移除"Payload_"前缀）
+                    field_name = pin.pin_name[8:]  # 移除"Payload_"
+                    # 创建完整的变量名（保持原始格式以便查找）
+                    var_name = f"Payload {field_name.replace('_', ' ')}"
+                    declarations.append(VariableDeclaration(
+                        variable_name=var_name,
+                        variable_type="auto",
+                        is_callback_parameter=True
+                    ))
+        elif "Completed" in callback_name:
+            # 完成回调通常没有额外参数
+            pass
+        elif "Cancelled" in callback_name:
+            # 取消回调通常没有额外参数
+            pass
+        else:
+            # 对于未知回调类型，检查是否有相关的输出数据引脚
+            for pin in node.pins:
+                if (pin.direction == "output" and 
+                    pin.pin_type not in ["exec"] and
+                    callback_name.lower() in pin.pin_name.lower()):
+                    declarations.append(VariableDeclaration(
+                        variable_name=pin.pin_name,
+                        variable_type="auto",
+                        is_callback_parameter=True
+                    ))
+        
+        return declarations
+    
+    def _try_resolve_from_symbol_table(self, context: AnalysisContext, source_node: GraphNode, source_pin_id: str) -> Optional[Expression]:
+        """
+        尝试从符号表解析表达式
+        检查源节点是否对应符号表中的变量
+        """
+        # 如果是变量获取节点，检查变量名是否在符号表中
+        if 'K2Node_VariableGet' in source_node.class_type:
+            var_reference = source_node.properties.get("VariableReference", "")
+            var_name = ""
+            
+            if isinstance(var_reference, dict):
+                var_name = var_reference.get("MemberName", "")
+            elif isinstance(var_reference, str) and "MemberName=" in var_reference:
+                import re
+                match = re.search(r'MemberName="([^"]+)"', var_reference)
+                var_name = match.group(1) if match else ""
+            
+            if var_name:
+                symbol = context.symbol_table.lookup(var_name)
+                if symbol:
+                    return VariableGetExpression(
+                        variable_name=symbol.name,
+                        is_self_variable=not (symbol.is_loop_variable or symbol.is_callback_parameter)
+                    )
+        
+        # 检查是否有输出引脚名称匹配符号表中的变量
+        for pin in source_node.pins:
+            if pin.direction == "output" and pin.pin_id == source_pin_id:
+                # 直接匹配引脚名称
+                symbol = context.symbol_table.lookup(pin.pin_name)
+                if symbol:
+                    return VariableGetExpression(
+                        variable_name=symbol.name,
+                        is_self_variable=not (symbol.is_loop_variable or symbol.is_callback_parameter)
+                    )
+                
+                # 特殊处理：如果是Payload_字段，尝试转换为"Payload FieldName"格式
+                if pin.pin_name.startswith("Payload_"):
+                    field_name = pin.pin_name[8:]  # 移除"Payload_"
+                    var_name = f"Payload {field_name.replace('_', ' ')}"
+                    symbol = context.symbol_table.lookup(var_name)
+                    if symbol:
+                        return VariableGetExpression(
+                            variable_name=symbol.name,
+                            is_self_variable=not (symbol.is_loop_variable or symbol.is_callback_parameter)
+                        )
+                
+                # 特殊处理：ForEach循环的Array Element
+                if pin.pin_name == "Array Element" and 'K2Node_MacroInstance' in source_node.class_type:
+                    # 检查是否在ForEach循环的作用域中
+                    symbol = context.symbol_table.lookup("ArrayElement")
+                    if symbol:
+                        return VariableGetExpression(
+                            variable_name=symbol.name,
+                            is_self_variable=False
+                        )
+        
+        return None
+    
+    def _build_property_access_expression(self, context: AnalysisContext, node: GraphNode) -> Expression:
+        """
+        构建属性访问表达式，支持递归解析嵌套访问链
+        K2Node_VariableGet -> VariableGetExpression 或 PropertyAccessNode
+        """
+        # 提取当前节点的变量名
+        var_name, is_self_context = self._extract_variable_reference(node)
+        
+        # 检查是否有 self 引脚连接（表示这是一个属性访问）
+        self_pin = find_pin(node, "self", "input")
+        
+        if self_pin and self_pin.linked_to:
+            # 有 self 引脚连接，递归解析基础对象
+            base_expression = self._resolve_data_expression(context, self_pin)
+            
+            # 创建属性访问节点
+            return PropertyAccessNode(
+                target=base_expression,
+                property_name=var_name,
+                source_location=create_source_location(node),
+                ue_type="property_access"
+            )
+        else:
+            # 没有 self 引脚连接，这是一个顶级变量
+            return VariableGetExpression(
+                variable_name=var_name,
+                is_self_variable=is_self_context,
+                source_location=create_source_location(node),
+                ue_type="variable_reference"
+            )
+    
+    def _extract_variable_reference(self, node: GraphNode) -> Tuple[str, bool]:
+        """提取变量引用信息的公共方法 - 修复版本"""
+        var_reference = node.properties.get("VariableReference", "")
+        var_name = "UnknownVariable"
+        is_self_context = True  # 默认值
+        
+        # 提取变量名
+        if isinstance(var_reference, dict):
+            var_name = var_reference.get("MemberName", "UnknownVariable")
+            is_self_context = var_reference.get("bSelfContext", True)
+        elif isinstance(var_reference, str) and "MemberName=" in var_reference:
+            import re
+            match = re.search(r'MemberName="([^"]+)"', var_reference)
+            var_name = match.group(1) if match else "UnknownVariable"
+            
+            # 检查 VariableReference 中的 bSelfContext
+            if "bSelfContext=True" in var_reference:
+                is_self_context = True
+            elif "bSelfContext=False" in var_reference:
+                is_self_context = False
+            else:
+                # 如果 VariableReference 中没有 bSelfContext，检查 SelfContextInfo
+                self_context_info = node.properties.get("SelfContextInfo", "")
+                is_self_context = self_context_info != "NotSelfContext"
+        else:
+            # 如果没有 VariableReference，检查 SelfContextInfo
+            self_context_info = node.properties.get("SelfContextInfo", "")
+            is_self_context = self_context_info != "NotSelfContext"
+        
+        return var_name, is_self_context
+
+    def _extract_function_reference(self, node: GraphNode) -> str:
+        """
+        从节点中提取函数引用信息
+        支持多种函数引用格式
+        """
+        # 尝试从 FunctionReference 属性获取
+        func_ref = node.properties.get("FunctionReference", "")
+        if isinstance(func_ref, dict):
+            member_name = func_ref.get("MemberName", "")
+            if member_name:
+                return member_name
+        elif isinstance(func_ref, str) and "MemberName=" in func_ref:
+            import re
+            match = re.search(r'MemberName="([^"]+)"', func_ref)
+            if match:
+                return match.group(1)
+        
+        # 回退到其他可能的属性
+        return (node.properties.get("FunctionName", "") or 
+                node.properties.get("ArrayFunction", "") or 
+                "UnknownFunction")
+
+    def _parse_function_arguments(self, context: AnalysisContext, node: GraphNode, 
+                                  exclude_pins: set = None) -> List[Tuple[str, Expression]]:
+        """
+        解析函数参数
+        排除执行引脚和指定的特殊引脚
+        
+        :param exclude_pins: 要排除的引脚名称集合，如果为None则使用默认排除列表
+        """
+        if exclude_pins is None:
+            exclude_pins = {"self"}  # 默认只排除self引脚
+        
+        arguments = []
+        
         for pin in node.pins:
-            if pin.direction == "input" and pin.pin_type not in ["exec"]:
-                input_expr = self._resolve_data_expression(context, pin)
-                inputs.append((pin.pin_name, input_expr))
+            if (pin.direction == "input" and 
+                pin.pin_type not in ["exec"] and
+                pin.pin_name not in exclude_pins):
+                arg_expr = self._resolve_data_expression(context, pin)
+                arguments.append((pin.pin_name, arg_expr))
         
-        return FunctionCallExpression(
-            target=None,
-            function_name=f"math_{op}",
-            arguments=inputs,
-            source_location=create_source_location(node)
-        )
+        return arguments
+
+    def _create_function_call_node(self, context: AnalysisContext, node: GraphNode, 
+                                   function_name: str, target_expr: Expression, 
+                                   arguments: List[Tuple[str, Expression]]) -> ASTNode:
+        """
+        创建函数调用节点的公共逻辑
+        根据是否有执行引脚决定返回FunctionCallNode还是FunctionCallExpression
+        """
+        # 检查是否有执行引脚（决定是语句还是表达式）
+        has_exec_pins = any(pin.pin_type == "exec" for pin in node.pins)
+        
+        if has_exec_pins:
+            # 有执行引脚，生成FunctionCallNode
+            return FunctionCallNode(
+                target=target_expr,
+                function_name=function_name,
+                arguments=arguments,
+                source_location=create_source_location(node)
+            )
+        else:
+            # 纯函数调用，生成FunctionCallExpression
+            return FunctionCallExpression(
+                target=target_expr,
+                function_name=function_name,
+                arguments=arguments,
+                source_location=create_source_location(node)
+            )
+
+
     
-    def _process_array_access_node(self, context: AnalysisContext, node: GraphNode) -> FunctionCallExpression:
+
+
+
+    
+
+    
+    def _process_macro_instance(self, context: AnalysisContext, node: GraphNode) -> Optional[ASTNode]:
         """
-        处理数组访问节点
+        处理宏实例节点 - 现在通过注册表系统处理
+        K2Node_MacroInstance -> 根据宏类型返回不同的AST节点
         """
-        # 查找数组和索引引脚
-        array_pin = find_pin(node, "TargetArray", "input")
-        index_pin = find_pin(node, "Index", "input")
+        # 获取宏图引用信息
+        macro_ref = node.properties.get("MacroGraphReference", {})
+        if isinstance(macro_ref, dict):
+            macro_graph = macro_ref.get("MacroGraph", "")
+        elif isinstance(macro_ref, str):
+            macro_graph = macro_ref
+        else:
+            macro_graph = ""
         
-        array_expr = self._resolve_data_expression(context, array_pin) if array_pin else LiteralExpression("null", "null")
-        index_expr = self._resolve_data_expression(context, index_pin) if index_pin else LiteralExpression("0", "int")
+        # 构建特殊的处理器键来处理特定的宏类型
+        if "ForEachLoop" in macro_graph or "ForEach" in macro_graph:
+            # 使用特殊的注册键处理 ForEachLoop
+            from .common.decorators import get_processor
+            processor = get_processor("K2Node_MacroInstance:ForEachLoop")
+            if processor:
+                result = processor(self, context, node)
+                if hasattr(result, 'continuation_pin'):
+                    # NodeProcessingResult 类型，需要特殊处理
+                    context.pending_continuation_pin = result.continuation_pin
+                    return result.ast_node
+                return result
+        elif "WhileLoop" in macro_graph or "While" in macro_graph:
+            # 使用特殊的注册键处理 WhileLoop
+            from .common.decorators import get_processor
+            processor = get_processor("K2Node_MacroInstance:WhileLoop")
+            if processor:
+                return processor(self, context, node)
         
-        return FunctionCallExpression(
-            target=array_expr,
-            function_name="get_item",
-            arguments=[("index", index_expr)],
-            source_location=create_source_location(node)
-        )
+        # 通用宏处理
+        from .common.decorators import get_processor
+        processor = get_processor("K2Node_MacroInstance")
+        if processor:
+            return processor(self, context, node)
+        
+        return None
+    
+
+    
+
+    
+
+    
+    # ========================================================================
+    # 新增节点处理器实现
+    # ========================================================================
+    
+
+    
+
+    
+
     

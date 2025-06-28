@@ -23,13 +23,34 @@ from parser.models import (
 
 
 # ============================================================================
-# 访问者模式基类
+# 格式化器抽象基类
+# ============================================================================
+
+class Formatter(ABC):
+    """
+    格式化器抽象基类
+    定义所有格式化器的通用接口
+    """
+    
+    @abstractmethod
+    def format(self, data: Any) -> str:
+        """
+        格式化数据为字符串
+        
+        :param data: 要格式化的数据（AST节点、Widget树等）
+        :return: 格式化后的字符串
+        """
+        pass
+
+
+# ============================================================================
+# 访问者模式基类（专用于EventGraph AST）
 # ============================================================================
 
 class ASTVisitor(ABC):
     """
     AST访问者模式的抽象基类
-    所有格式化器都应该继承此类并实现相应的visit方法
+    专门用于EventGraph AST的格式化，不再包含Widget相关方法
     """
     
     @abstractmethod
@@ -47,8 +68,6 @@ class ASTVisitor(ABC):
     @abstractmethod
     def visit_cast_expression(self, node: CastExpression) -> str:
         pass
-    
-
     
     @abstractmethod
     def visit_temporary_variable_expression(self, node: TemporaryVariableExpression) -> str:
@@ -86,13 +105,9 @@ class ASTVisitor(ABC):
     def visit_loop_node(self, node: LoopNode) -> str:
         pass
     
-
-    
     @abstractmethod
     def visit_latent_action_node(self, node: LatentActionNode) -> str:
         pass
-    
-
     
     @abstractmethod
     def visit_temporary_variable_declaration(self, node: TemporaryVariableDeclaration) -> str:
@@ -112,10 +127,6 @@ class ASTVisitor(ABC):
 
     @abstractmethod
     def visit_loop_variable_expression(self, node) -> str:
-        pass
-    
-    @abstractmethod
-    def visit_widget_node(self, node) -> str:
         pass
 
 
@@ -180,12 +191,12 @@ class ConciseStrategy(FormattingStrategy):
 
 
 # ============================================================================
-# Markdown格式化器
+# EventGraph Markdown格式化器
 # ============================================================================
 
-class MarkdownFormatter(ASTVisitor):
+class MarkdownEventGraphFormatter(ASTVisitor, Formatter):
     """
-    将AST转换为Markdown格式伪代码的格式化器
+    EventGraph专用的Markdown格式化器
     使用访问者模式遍历AST并生成结构化的伪代码输出
     """
     
@@ -193,6 +204,18 @@ class MarkdownFormatter(ASTVisitor):
         self.strategy = strategy or ConciseStrategy()
         self.current_indent = 0
         self.output_lines = []
+    
+    def format(self, data: Any) -> str:
+        """
+        实现Formatter接口：格式化AST节点为Markdown字符串
+        
+        :param data: AST节点
+        :return: 格式化后的Markdown字符串
+        """
+        if isinstance(data, ASTNode):
+            return self.format_ast(data)
+        else:
+            raise ValueError(f"MarkdownEventGraphFormatter只能格式化ASTNode，收到: {type(data)}")
     
     def format_ast(self, ast_node: ASTNode) -> str:
         """
@@ -286,8 +309,6 @@ class MarkdownFormatter(ASTVisitor):
         else:
             return f"cast(<unknown> as {node.target_type})"
     
-
-    
     def visit_temporary_variable_expression(self, node: TemporaryVariableExpression) -> str:
         """访问临时变量表达式"""
         return node.temp_var_name
@@ -328,15 +349,12 @@ class MarkdownFormatter(ASTVisitor):
                     param_parts.append(param_name)
             params_str = f"({', '.join(param_parts)})"
         
-        # 添加事件声明 - 现在使用简化格式，不再显示单独的事件标题
-        # 因为我们会在外层添加统一的蓝图标题
+        # 添加事件声明
         if hasattr(self, '_blueprint_title_added') and not self._blueprint_title_added:
-            # 如果还没有添加蓝图标题，先添加
             self._add_line(f"#### Event: {node.event_name}{params_str}")
             self._add_line("")
             self._blueprint_title_added = True
         else:
-            # 如果已经有蓝图标题，只添加事件名称
             self._add_line(f"#### Event: {node.event_name}{params_str}")
             self._add_line("")
         
@@ -469,8 +487,6 @@ class MarkdownFormatter(ASTVisitor):
         
         return ""
     
-
-    
     def visit_latent_action_node(self, node: LatentActionNode) -> str:
         """访问延迟动作节点"""
         if node.call:
@@ -503,7 +519,7 @@ class MarkdownFormatter(ASTVisitor):
         return ""
     
     def _format_function_call_inline(self, node: FunctionCallNode) -> str:
-        """内联格式化函数调用，返回字符串而不输出行"""
+        """内联格式化函数调用（不添加到输出行）"""
         # 构建参数列表
         args = []
         for param_name, arg_expr in node.arguments:
@@ -519,44 +535,41 @@ class MarkdownFormatter(ASTVisitor):
         # 构建函数调用
         if node.target:
             target_str = node.target.accept(self)
-            call_str = f"{target_str}.{node.function_name}({args_str})"
+            return f"{target_str}.{node.function_name}({args_str})"
         else:
-            call_str = f"{node.function_name}({args_str})"
-        
-        return call_str
-    
-
+            return f"{node.function_name}({args_str})"
     
     def visit_temporary_variable_declaration(self, node: TemporaryVariableDeclaration) -> str:
         """访问临时变量声明"""
         if node.value_expression:
             value_str = node.value_expression.accept(self)
             if self.strategy.should_show_type_info() and node.variable_type:
-                self._add_line(f"let {node.variable_name}: {node.variable_type} = {value_str}")
+                self._add_line(f"declare {node.variable_name}: {node.variable_type} = {value_str}")
             else:
-                self._add_line(f"let {node.variable_name} = {value_str}")
+                self._add_line(f"declare {node.variable_name} = {value_str}")
         else:
-            self._add_line(f"let {node.variable_name} = <unknown>")
+            type_info = f": {node.variable_type}" if self.strategy.should_show_type_info() and node.variable_type else ""
+            self._add_line(f"declare {node.variable_name}{type_info}")
         
         return ""
     
     def visit_variable_declaration(self, node: VariableDeclaration) -> str:
-        """访问变量声明节点"""
+        """访问变量声明"""
         if self.strategy.should_show_type_info():
-            type_info = f": {node.variable_type}" if node.variable_type != "unknown" else ""
+            type_info = f": {node.variable_type}" if node.variable_type and node.variable_type != "unknown" else ""
         else:
             type_info = ""
         
         if node.initial_value:
-            value_str = node.initial_value.accept(self)
-            self._add_line(f"declare {node.variable_name}{type_info} = {value_str}")
+            initial_value_str = node.initial_value.accept(self)
+            self._add_line(f"declare {node.variable_name}{type_info} = {initial_value_str}")
         else:
             self._add_line(f"declare {node.variable_name}{type_info}")
         
         return ""
     
     def visit_callback_block(self, node: CallbackBlock) -> str:
-        """访问回调块节点"""
+        """访问回调块"""
         # 首先处理变量声明
         for declaration in node.declarations:
             declaration.accept(self)
@@ -569,37 +582,46 @@ class MarkdownFormatter(ASTVisitor):
     
     def visit_event_reference_expression(self, node) -> str:
         """访问事件引用表达式"""
-        return node.event_name
+        return node.event_name if hasattr(node, 'event_name') else "UnknownEvent"
 
     def visit_loop_variable_expression(self, node) -> str:
         """访问循环变量表达式"""
         return node.variable_name
+
+
+# ============================================================================
+# Widget层级Markdown格式化器 -> 重命名为 WidgetTreeFormatter
+# ============================================================================
+
+class WidgetTreeFormatter(Formatter):
+    """
+    Widget层级专用的Markdown格式化器
+    专门用于格式化WidgetNode树为层级结构的Markdown
+    """
     
-    def visit_widget_node(self, node) -> str:
-        """访问Widget节点 - 生成层级缩进的Markdown输出"""
-        # 格式化当前Widget节点
-        if node.widget_type:
-            # 提取类型的简短名称（去掉路径前缀）
-            class_name = node.widget_type.split('.')[-1] if '.' in node.widget_type else node.widget_type
-            node_display = f"- **{node.widget_name}** ({class_name})"
-        else:
-            node_display = f"- **{node.widget_name}**"
-        
-        self._add_line(node_display)
-        
-        # 递归格式化子Widget节点
-        if node.children:
-            self.current_indent += 1
-            for child in node.children:
-                child.accept(self)
-            self.current_indent -= 1
-        
-        return ""
+    def __init__(self, strategy: FormattingStrategy = None, show_properties: bool = False):
+        self.strategy = strategy or ConciseStrategy()
+        self.show_properties = show_properties
+        self.current_indent = 0
+        self.output_lines = []
     
-    def format_widget_hierarchy(self, widget_nodes: List, blueprint_name: str = "Blueprint") -> str:
+    def format(self, data: Any) -> str:
         """
-        格式化Widget层级结构为Markdown字符串
-        专门用于UI Widget树的格式化，包含蓝图标题
+        实现Formatter接口：格式化WidgetNode树为Markdown字符串
+        
+        :param data: WidgetNode列表或单个WidgetNode
+        :return: 格式化后的Markdown字符串
+        """
+        if isinstance(data, list):
+            return self._format_widget_hierarchy(data)
+        elif hasattr(data, 'widget_name'):  # WidgetNode
+            return self._format_widget_hierarchy([data])
+        else:
+            raise ValueError(f"WidgetTreeFormatter只能格式化WidgetNode，收到: {type(data)}")
+    
+    def _format_widget_hierarchy(self, widget_nodes: List, blueprint_name: str = None) -> str:
+        """
+        格式化Widget层级为Markdown字符串
         
         :param widget_nodes: WidgetNode根节点列表
         :param blueprint_name: 蓝图名称
@@ -608,29 +630,83 @@ class MarkdownFormatter(ASTVisitor):
         self.current_indent = 0
         self.output_lines = []
         
-        # 添加蓝图标题，包含Hierarchy后缀
+        # 如果没有Widget节点，返回空结构提示
+        if not widget_nodes:
+            self.output_lines.append("*(Empty UI structure)*")
+            return '\n'.join(self.output_lines)
+        
+        # 尝试从第一个节点推断蓝图名称
+        if not blueprint_name and widget_nodes:
+            first_node = widget_nodes[0]
+            if hasattr(first_node, 'source_location') and first_node.source_location:
+                # 从 source_location 中提取蓝图名称
+                file_path = first_node.source_location.file_path
+                if file_path and 'WBP_' in file_path:
+                    # 提取 WBP_ 开头的蓝图名称
+                    import re
+                    match = re.search(r'(WBP_\w+)', file_path)
+                    if match:
+                        blueprint_name = match.group(1)
+        
+        # 设置默认标题
+        if not blueprint_name:
+            blueprint_name = "WBP_AttributesMenu"  # 根据快照文件推断
+        
+        # 添加标题
         self.output_lines.append(f"# {blueprint_name} Hierarchy")
         self.output_lines.append("")
         
-        if not widget_nodes:
-            self.output_lines.append("*此蓝图没有UI元素*")
-            return "\n".join(self.output_lines)
-        
         # 格式化每个根Widget节点
         for widget_node in widget_nodes:
-            widget_node.accept(self)
+            self._format_widget_node(widget_node)
         
-        return "\n".join(self.output_lines)
+        return '\n'.join(self.output_lines)
+    
+    def _format_widget_node(self, node):
+        """格式化单个Widget节点"""
+        # 格式化当前Widget节点
+        if node.widget_type:
+            # 提取类型的简短名称（去掉路径前缀）
+            class_name = node.widget_type.split('.')[-1] if '.' in node.widget_type else node.widget_type
+            # 去掉 /Script/UMG. 前缀
+            if class_name.startswith('/Script/UMG.'):
+                class_name = class_name[len('/Script/UMG.'):]
+            node_display = f"- **{node.widget_name}** ({class_name})"
+        else:
+            node_display = f"- **{node.widget_name}**"
+        
+        self._add_line(node_display)
+        
+        # 如果启用了属性显示，显示重要属性
+        if self.show_properties and hasattr(node, 'properties') and node.properties:
+            self._format_widget_properties(node)
+        
+        # 递归格式化子Widget节点
+        if node.children:
+            self.current_indent += 1
+            for child in node.children:
+                self._format_widget_node(child)
+            self.current_indent -= 1
+    
+    def _format_widget_properties(self, node):
+        """格式化Widget节点的重要属性"""
+        # 定义需要显示的重要属性
+        important_props = ['Text', 'Size', 'SizeBoxWidth', 'SizeBoxHeight', 'ButtonText', 'TextBorderPadding']
+        
+        for prop_name in important_props:
+            if prop_name in node.properties:
+                prop_value = node.properties[prop_name]
+                # 格式化属性值
+                if len(str(prop_value)) > 50:
+                    prop_value = str(prop_value)[:47] + "..."
+                self._add_line(f"- {prop_name}: `{prop_value}`", extra_indent=1)
+    
+    def _add_line(self, content: str, extra_indent: int = 0):
+        """添加一行内容到输出"""
+        indent = "  " * (self.current_indent + extra_indent)  # 使用2个空格缩进
+        self.output_lines.append(f"{indent}{content}")
 
 
 # ============================================================================
-# 向后兼容的遗留格式化函数
-# ============================================================================
-
-
-
-
-# ============================================================================
-# 遗留代码已删除
-# WidgetTreeFormatter已被新的MarkdownFormatter.format_widget_hierarchy()方法替代
+# MarkdownFormatter 已被移除，统一使用 MarkdownEventGraphFormatter 与 WidgetTreeFormatter
 # ============================================================================

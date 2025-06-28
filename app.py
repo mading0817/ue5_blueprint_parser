@@ -1,6 +1,7 @@
 from flask import Flask, request, render_template, jsonify
 from parser.graph_parser import parse_blueprint_graph
-from parser.formatters import MarkdownFormatter, ConciseStrategy, VerboseStrategy
+from parser.formatters import MarkdownEventGraphFormatter, WidgetTreeFormatter, ConciseStrategy, VerboseStrategy
+from parser.widget_parser import parse as parse_widget_ast  # 替换旧的 blueprint_parser 引入
 
 # 初始化Flask应用
 app = Flask(__name__)
@@ -76,7 +77,7 @@ def parse_graph():
 
 def run_new_pipeline(graph_text: str, graph_name: str = "EventGraph", verbose: bool = False) -> str:
     """
-    运行新的三阶段管道：graph_parser -> GraphAnalyzer -> MarkdownFormatter
+    运行新的三阶段管道：graph_parser -> GraphAnalyzer -> MarkdownEventGraphFormatter
     
     :param graph_text: 图文本
     :param graph_name: 图名称
@@ -98,7 +99,7 @@ def run_new_pipeline(graph_text: str, graph_name: str = "EventGraph", verbose: b
     
     # 阶段3: 格式化输出
     strategy = VerboseStrategy() if verbose else ConciseStrategy()
-    formatter = MarkdownFormatter(strategy)
+    formatter = MarkdownEventGraphFormatter(strategy)
     
     # 添加蓝图标题
     blueprint_title = f"# {graph.graph_name}"  # graph_name现在包含了蓝图名称和图类型
@@ -106,7 +107,7 @@ def run_new_pipeline(graph_text: str, graph_name: str = "EventGraph", verbose: b
     # 格式化所有AST节点
     results = []
     for ast_node in ast_nodes:
-        result = formatter.format_ast(ast_node)
+        result = formatter.format(ast_node)
         if result:
             results.append(result)
     
@@ -120,28 +121,21 @@ def run_new_pipeline(graph_text: str, graph_name: str = "EventGraph", verbose: b
 
 def run_widget_pipeline(widget_text: str, show_properties: bool = False) -> str:
     """
-    运行Widget解析管道：blueprint_parser -> WidgetTreeFormatter
+    运行Widget解析管道：widget_parser -> WidgetTreeFormatter
     用于解析UE5 UserWidget的UI层级结构
-    
-    :param widget_text: Widget蓝图文本
-    :param show_properties: 是否显示Widget属性
-    :return: 格式化的Markdown树状结构输出
     """
-    from parser.blueprint_parser import parse_ue_blueprint
-    from parser.formatters import WidgetTreeFormatter
-    
     # 阶段1: 解析Widget蓝图结构
-    blueprint = parse_ue_blueprint(widget_text)
-    if not blueprint:
+    widget_nodes = parse_widget_ast(widget_text)
+    if not widget_nodes:
         return "解析Widget蓝图失败：无法识别蓝图文本格式或文本为空"
-    
+
     # 阶段2: 格式化为树状结构
     formatter = WidgetTreeFormatter(show_properties=show_properties)
-    result = formatter.format_blueprint(blueprint)
-    
+    result = formatter.format(widget_nodes)
+
     if not result or result.strip() == "":
         return "格式化输出失败：无法生成Widget树状结构"
-    
+
     return result
 
 
