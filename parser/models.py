@@ -172,6 +172,35 @@ class Statement(ASTNode):
     pass
 
 
+@dataclass
+class WidgetNode(ASTNode):
+    """
+    Widget节点 - 新架构UI AST节点
+    用于表示UE5 UserWidget的UI元素层级结构
+    继承自ASTNode以统一架构，替代遗留的BlueprintNode
+    """
+    widget_name: str = ""  # Widget实例名称
+    widget_type: str = ""  # Widget类型（如Button, TextBlock等）
+    properties: Dict[str, Any] = field(default_factory=dict)  # Widget属性
+    children: List['WidgetNode'] = field(default_factory=list)  # 子Widget节点
+    
+    def accept(self, visitor):
+        """访问者模式的accept方法"""
+        return visitor.visit_widget_node(self)
+    
+    def add_child(self, child: 'WidgetNode'):
+        """添加子Widget节点"""
+        if child not in self.children:
+            self.children.append(child)
+    
+    def find_child_by_name(self, name: str) -> Optional['WidgetNode']:
+        """根据名称查找子Widget节点"""
+        for child in self.children:
+            if child.widget_name == name:
+                return child
+        return None
+
+
 # ============================================================================
 # 表达式节点 (Expression Nodes)
 # ============================================================================
@@ -444,18 +473,7 @@ class LoopNode(Statement):
         return visitor.visit_loop_node(self)
 
 
-@dataclass
-class MultiBranchNode(Statement):
-    """
-    多分支节点（switch/select）
-    例如: switch (State) { case Idle: ..., case Running: ... }
-    """
-    switch_expression: Optional[Expression] = None
-    branches: List[Tuple[str, ExecutionBlock]] = field(default_factory=list)  # [(case_value, body), ...]
-    default_branch: Optional[ExecutionBlock] = None
-    
-    def accept(self, visitor):
-        return visitor.visit_multi_branch_node(self)
+
 
 
 @dataclass

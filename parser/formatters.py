@@ -13,11 +13,12 @@ from parser.models import (
     CastExpression, TemporaryVariableExpression,
     PropertyAccessNode, UnsupportedNode,
     ExecutionBlock, EventNode, AssignmentNode, FunctionCallNode,
-    BranchNode, LoopNode, LoopType, MultiBranchNode, LatentActionNode,
+    BranchNode, LoopNode, LoopType, LatentActionNode,
     TemporaryVariableDeclaration,
-    BlueprintNode, Blueprint, BlueprintGraph, GraphNode,
     # 新的语义节点
-    VariableDeclaration, CallbackBlock
+    VariableDeclaration, CallbackBlock,
+    # 新架构UI节点
+    WidgetNode
 )
 
 
@@ -85,9 +86,7 @@ class ASTVisitor(ABC):
     def visit_loop_node(self, node: LoopNode) -> str:
         pass
     
-    @abstractmethod
-    def visit_multi_branch_node(self, node: MultiBranchNode) -> str:
-        pass
+
     
     @abstractmethod
     def visit_latent_action_node(self, node: LatentActionNode) -> str:
@@ -113,6 +112,10 @@ class ASTVisitor(ABC):
 
     @abstractmethod
     def visit_loop_variable_expression(self, node) -> str:
+        pass
+    
+    @abstractmethod
+    def visit_widget_node(self, node) -> str:
         pass
 
 
@@ -466,30 +469,7 @@ class MarkdownFormatter(ASTVisitor):
         
         return ""
     
-    def visit_multi_branch_node(self, node: MultiBranchNode) -> str:
-        """访问多分支节点"""
-        if node.switch_expression:
-            switch_str = node.switch_expression.accept(self)
-            self._add_line(f"switch ({switch_str}):")
-        else:
-            self._add_line("switch (<unknown>):")
-        
-        # 处理各个分支
-        for case_value, case_body in node.branches:
-            self._add_line(f"case {case_value}:", 1)
-            if case_body and case_body.statements:
-                self.current_indent += 2
-                self.visit_execution_block(case_body)
-                self.current_indent -= 2
-        
-        # 处理默认分支
-        if node.default_branch and node.default_branch.statements:
-            self._add_line("default:", 1)
-            self.current_indent += 2
-            self.visit_execution_block(node.default_branch)
-            self.current_indent -= 2
-        
-        return ""
+
     
     def visit_latent_action_node(self, node: LatentActionNode) -> str:
         """访问延迟动作节点"""
@@ -594,6 +574,53 @@ class MarkdownFormatter(ASTVisitor):
     def visit_loop_variable_expression(self, node) -> str:
         """访问循环变量表达式"""
         return node.variable_name
+    
+    def visit_widget_node(self, node) -> str:
+        """访问Widget节点 - 生成层级缩进的Markdown输出"""
+        # 格式化当前Widget节点
+        if node.widget_type:
+            # 提取类型的简短名称（去掉路径前缀）
+            class_name = node.widget_type.split('.')[-1] if '.' in node.widget_type else node.widget_type
+            node_display = f"- **{node.widget_name}** ({class_name})"
+        else:
+            node_display = f"- **{node.widget_name}**"
+        
+        self._add_line(node_display)
+        
+        # 递归格式化子Widget节点
+        if node.children:
+            self.current_indent += 1
+            for child in node.children:
+                child.accept(self)
+            self.current_indent -= 1
+        
+        return ""
+    
+    def format_widget_hierarchy(self, widget_nodes: List, blueprint_name: str = "Blueprint") -> str:
+        """
+        格式化Widget层级结构为Markdown字符串
+        专门用于UI Widget树的格式化，包含蓝图标题
+        
+        :param widget_nodes: WidgetNode根节点列表
+        :param blueprint_name: 蓝图名称
+        :return: 格式化后的Markdown字符串
+        """
+        self.current_indent = 0
+        self.output_lines = []
+        
+        # 添加蓝图标题，包含Hierarchy后缀
+        self.output_lines.append(f"# {blueprint_name} Hierarchy")
+        self.output_lines.append("")
+        
+        if not widget_nodes:
+            self.output_lines.append("*此蓝图没有UI元素*")
+            return "\n".join(self.output_lines)
+        
+        # 格式化每个根Widget节点
+        for widget_node in widget_nodes:
+            widget_node.accept(self)
+        
+        return "\n".join(self.output_lines)
 
 
 # ============================================================================
@@ -604,96 +631,6 @@ class MarkdownFormatter(ASTVisitor):
 
 
 # ============================================================================
-# Widget树格式化器 - 用于解析UI Widget层级结构
+# 遗留代码已删除
+# WidgetTreeFormatter已被新的MarkdownFormatter.format_widget_hierarchy()方法替代
 # ============================================================================
-
-class WidgetTreeFormatter:
-    """
-    Widget树格式化器
-    将BlueprintNode树结构转换为层级缩进的Markdown格式
-    专门用于显示UE5 UserWidget的UI元素层级关系
-    """
-    
-    def __init__(self, show_properties: bool = False):
-        """
-        初始化Widget树格式化器
-        
-        :param show_properties: 是否显示Widget的属性信息
-        """
-        self.show_properties = show_properties
-        self.output_lines = []
-    
-    def format_blueprint(self, blueprint: Blueprint) -> str:
-        """
-        格式化整个Blueprint对象为树状结构字符串
-        
-        :param blueprint: 要格式化的Blueprint对象
-        :return: 格式化后的Markdown字符串
-        """
-        self.output_lines = []
-        
-        # 添加蓝图标题，包含Hierarchy后缀
-        self.output_lines.append(f"# {blueprint.name} Hierarchy")
-        self.output_lines.append("")
-        
-        if not blueprint.root_nodes:
-            self.output_lines.append("*此蓝图没有UI元素*")
-            return "\n".join(self.output_lines)
-        
-        # 格式化每个根节点
-        for root_node in blueprint.root_nodes:
-            self._format_node(root_node, 0)
-        
-        return "\n".join(self.output_lines)
-    
-    def _format_node(self, node: BlueprintNode, indent_level: int):
-        """
-        递归格式化单个节点及其子节点
-        
-        :param node: 要格式化的节点
-        :param indent_level: 当前缩进级别
-        """
-        # 生成缩进
-        indent = "  " * indent_level  # 每级缩进2个空格
-        
-        # 格式化节点名称和类型
-        if node.class_type:
-            # 提取类型的简短名称（去掉路径前缀）
-            class_name = node.class_type.split('.')[-1] if '.' in node.class_type else node.class_type
-            node_display = f"- **{node.name}** ({class_name})"
-        else:
-            node_display = f"- **{node.name}**"
-        
-        self.output_lines.append(f"{indent}{node_display}")
-        
-        # 如果启用了属性显示，添加重要属性
-        if self.show_properties and node.properties:
-            self._format_properties(node.properties, indent_level + 1)
-        
-        # 递归格式化子节点
-        for child in node.children:
-            self._format_node(child, indent_level + 1)
-    
-    def _format_properties(self, properties: Dict[str, Any], indent_level: int):
-        """
-        格式化节点的属性信息
-        
-        :param properties: 属性字典
-        :param indent_level: 缩进级别
-        """
-        indent = "  " * indent_level
-        
-        # 选择性显示重要属性
-        important_props = ['Text', 'Content', 'Visibility', 'Size', 'Position', 'Anchor']
-        
-        for prop_name, prop_value in properties.items():
-            if any(important in prop_name for important in important_props):
-                # 简化属性值显示
-                if isinstance(prop_value, str) and len(prop_value) > 50:
-                    prop_value = prop_value[:47] + "..."
-                self.output_lines.append(f"{indent}  - {prop_name}: `{prop_value}`")
-
-
-
-
- 

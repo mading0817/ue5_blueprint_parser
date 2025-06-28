@@ -2,7 +2,7 @@ import re
 from collections import deque
 from typing import List, Dict, Optional, Tuple
 
-from .models import BlueprintNode, Blueprint
+from .models import BlueprintNode, Blueprint, WidgetNode, SourceLocation
 
 
 def parse_object_path(path_string: str) -> Optional[str]:
@@ -113,3 +113,116 @@ def parse_ue_blueprint(blueprint_text: str) -> Optional[Blueprint]:
     ]
 
     return Blueprint(name=blueprint_name, root_nodes=root_nodes)
+
+
+def build_widget_ast_tree(objects: List[BlueprintNode]) -> List[WidgetNode]:
+    """
+    从BlueprintNode对象列表构建WidgetNode AST树
+    
+    :param objects: 解析后的BlueprintNode对象列表
+    :return: WidgetNode AST树的根节点列表
+    """
+    # 创建WidgetNode映射
+    widget_nodes = {}
+    
+    # 首先创建所有WidgetNode对象
+    for obj in objects:
+        # 跳过Slot和辅助对象
+        if 'Slot' in obj.class_type or 'WidgetSlotPair' in obj.class_type:
+            continue
+            
+        widget_node = WidgetNode(
+            widget_name=obj.name,
+            widget_type=obj.class_type,
+            properties=obj.properties.copy(),
+            source_location=SourceLocation(
+                node_name=obj.name,
+                file_path="Blueprint"
+            )
+        )
+        widget_nodes[obj.name] = widget_node
+    
+    # 重建层级关系
+    for obj in objects:
+        if obj.class_type and 'Slot' in obj.class_type:
+            parent_path = obj.properties.get('Parent')
+            content_path = obj.properties.get('Content')
+            
+            if parent_path and content_path:
+                parent_name = parse_object_path(parent_path)
+                child_name = parse_object_path(content_path)
+                
+                parent_widget = widget_nodes.get(parent_name)
+                child_widget = widget_nodes.get(child_name)
+                
+                if parent_widget and child_widget:
+                    parent_widget.add_child(child_widget)
+    
+    # 返回根节点（没有被其他节点包含的节点）
+    all_children = set()
+    for widget in widget_nodes.values():
+        for child in widget.children:
+            all_children.add(child.widget_name)
+    
+    root_widgets = [
+        widget for widget in widget_nodes.values()
+        if widget.widget_name not in all_children
+    ]
+    
+    return root_widgets
+
+
+def parse_ue_blueprint_to_widget_ast(blueprint_text: str) -> List[WidgetNode]:
+    """
+    新的UI解析函数：直接将UE蓝图文本转换为WidgetNode AST树
+    
+    :param blueprint_text: UE蓝图的原始文本内容
+    :return: WidgetNode AST树的根节点列表，如果解析失败则返回空列表
+    """
+    # 首先使用现有的解析逻辑获取BlueprintNode对象
+    blueprint = parse_ue_blueprint(blueprint_text)
+    if not blueprint or not blueprint.root_nodes:
+        return []
+    
+    # 重新解析所有对象以构建完整的对象列表
+    objects: List[BlueprintNode] = []
+    object_stack = deque()
+    
+    begin_obj_re = re.compile(r'Begin Object(?: Class=(?P<class>[\w./_]+))? Name="(?P<name>[\w_]+)"')
+    prop_re = re.compile(r'([\w_()]+)=(.*)')
+    
+    for line in blueprint_text.strip().splitlines():
+        line = line.strip()
+        begin_match = begin_obj_re.search(line)
+        
+        if begin_match:
+            obj_name = begin_match.group('name')
+            obj_class = begin_match.group('class')
+            
+            if obj_class:
+                node = BlueprintNode(name=obj_name, class_type=obj_class)
+                objects.append(node)
+                object_stack.append(node)
+            else:
+                node = find_object_by_name(obj_name, objects)
+                if node:
+                    object_stack.append(node)
+            continue
+        
+        if line.startswith('End Object'):
+            if object_stack:
+                object_stack.pop()
+            continue
+        
+        if object_stack:
+            current_obj = object_stack[-1]
+            prop_match = prop_re.match(line)
+            if prop_match:
+                key, value = prop_match.groups()
+                current_obj.properties[key.strip()] = value.strip()
+    
+    # 构建层级关系
+    build_hierarchy(objects)
+    
+    # 转换为WidgetNode AST树
+    return build_widget_ast_tree(objects)

@@ -16,7 +16,7 @@ from .models import (
     LiteralExpression, TemporaryVariableExpression, CastExpression,
     TemporaryVariableDeclaration, PropertyAccessNode, UnsupportedNode,
     # 控制流节点
-    BranchNode, LoopNode, LoopType, MultiBranchNode, LatentActionNode,
+    BranchNode, LoopNode, LoopType, LatentActionNode,
     # 新的语义节点
     VariableDeclaration, CallbackBlock,
     # 新架构核心数据结构
@@ -24,6 +24,7 @@ from .models import (
     NodeProcessingResult
 )
 from .symbol_table import SymbolTable, Symbol
+from .utils import find_pin, create_source_location, get_pin_default_value, extract_pin_type
 
 
 # 节点处理器类型定义
@@ -189,7 +190,7 @@ class GraphAnalyzer:
             return UnsupportedNode(
                 class_name=node.class_type,
                 node_name=node.node_name,
-                source_location=self._create_source_location(node)
+                source_location=create_source_location(node)
             )
     
     # ========================================================================
@@ -212,7 +213,7 @@ class GraphAnalyzer:
             event_name=event_name,
             parameters=parameters,
             body=ExecutionBlock(),
-            source_location=self._create_source_location(node)
+            source_location=create_source_location(node)
         )
         
         # 查找执行输出引脚并跟随执行流
@@ -288,7 +289,7 @@ class GraphAnalyzer:
         """
         # 优先查找标准的执行输出引脚
         for pin_name in ["then", "exec"]:
-            pin = self._find_pin(node, pin_name, "output")
+            pin = find_pin(node, pin_name, "output")
             if pin:
                 return pin
         
@@ -299,12 +300,7 @@ class GraphAnalyzer:
         
         return None
     
-    def _process_event_node(self, context: AnalysisContext, node: GraphNode) -> Optional[EventNode]:
-        """
-        处理事件节点 - 保留旧方法以防兼容性问题
-        K2Node_Event -> EventNode
-        """
-        return self._process_generic_event_node(context, node)
+
     
     def _extract_variable_reference(self, node: GraphNode) -> Tuple[str, bool]:
         """提取变量引用信息的公共方法 - 修复版本"""
@@ -338,27 +334,75 @@ class GraphAnalyzer:
         return var_name, is_self_context
 
     def _extract_function_reference(self, node: GraphNode) -> str:
-        """提取函数引用信息的公共方法"""
-        func_reference = node.properties.get("FunctionReference", "")
-        if isinstance(func_reference, dict):
-            return func_reference.get("MemberName", "UnknownFunction")
-        elif isinstance(func_reference, str) and "MemberName=" in func_reference:
+        """
+        从节点中提取函数引用信息
+        支持多种函数引用格式
+        """
+        # 尝试从 FunctionReference 属性获取
+        func_ref = node.properties.get("FunctionReference", "")
+        if isinstance(func_ref, dict):
+            member_name = func_ref.get("MemberName", "")
+            if member_name:
+                return member_name
+        elif isinstance(func_ref, str) and "MemberName=" in func_ref:
             import re
-            match = re.search(r'MemberName="([^"]+)"', func_reference)
-            return match.group(1) if match else "UnknownFunction"
-        else:
-            return "UnknownFunction"
+            match = re.search(r'MemberName="([^"]+)"', func_ref)
+            if match:
+                return match.group(1)
+        
+        # 回退到其他可能的属性
+        return (node.properties.get("FunctionName", "") or 
+                node.properties.get("ArrayFunction", "") or 
+                "UnknownFunction")
 
-    def _parse_function_arguments(self, context: AnalysisContext, node: GraphNode) -> List[Tuple[str, Expression]]:
-        """解析函数参数的公共方法"""
+    def _parse_function_arguments(self, context: AnalysisContext, node: GraphNode, 
+                                  exclude_pins: set = None) -> List[Tuple[str, Expression]]:
+        """
+        解析函数参数
+        排除执行引脚和指定的特殊引脚
+        
+        :param exclude_pins: 要排除的引脚名称集合，如果为None则使用默认排除列表
+        """
+        if exclude_pins is None:
+            exclude_pins = {"self"}  # 默认只排除self引脚
+        
         arguments = []
+        
         for pin in node.pins:
             if (pin.direction == "input" and 
-                pin.pin_type not in ["exec", "delegate"] and 
-                pin.pin_name not in ["self", "then"]):
+                pin.pin_type not in ["exec"] and
+                pin.pin_name not in exclude_pins):
                 arg_expr = self._resolve_data_expression(context, pin)
                 arguments.append((pin.pin_name, arg_expr))
+        
         return arguments
+
+    def _create_function_call_node(self, context: AnalysisContext, node: GraphNode, 
+                                   function_name: str, target_expr: Expression, 
+                                   arguments: List[Tuple[str, Expression]]) -> ASTNode:
+        """
+        创建函数调用节点的公共逻辑
+        根据是否有执行引脚决定返回FunctionCallNode还是FunctionCallExpression
+        """
+        # 检查是否有执行引脚（决定是语句还是表达式）
+        has_exec_pins = any(pin.pin_type == "exec" for pin in node.pins)
+        
+        if has_exec_pins:
+            # 有执行引脚，生成FunctionCallNode
+            return FunctionCallNode(
+                target=target_expr,
+                function_name=function_name,
+                arguments=arguments,
+                source_location=create_source_location(node)
+            )
+        else:
+            # 纯函数调用，生成FunctionCallExpression
+            return FunctionCallExpression(
+                target=target_expr,
+                function_name=function_name,
+                arguments=arguments,
+                source_location=create_source_location(node)
+            )
 
     def _process_variable_set(self, context: AnalysisContext, node: GraphNode) -> Optional[AssignmentNode]:
         """
@@ -370,7 +414,7 @@ class GraphAnalyzer:
         var_name, is_self_context = self._extract_variable_reference(node)
         
         # 查找值引脚（通常是和变量同名的输入引脚）
-        value_pin = self._find_pin(node, var_name, "input")
+        value_pin = find_pin(node, var_name, "input")
         if not value_pin:
             # 尝试查找任何非exec的输入引脚
             for pin in node.pins:
@@ -386,7 +430,7 @@ class GraphAnalyzer:
         
         # 关键修复：解析目标对象
         # 检查 self 引脚以确定操作的真正目标
-        self_pin = self._find_pin(node, "self", "input")
+        self_pin = find_pin(node, "self", "input")
         
         if self_pin and self_pin.linked_to and not is_self_context:
             # 有 self 引脚连接且不是 SelfContext，说明这是对其他对象的属性赋值
@@ -397,14 +441,14 @@ class GraphAnalyzer:
             target_expr = PropertyAccessNode(
                 target=target_object_expr,
                 property_name=var_name,
-                source_location=self._create_source_location(node)
+                source_location=create_source_location(node)
             )
         else:
             # 没有 self 引脚连接或是 SelfContext，这是对当前对象变量的赋值
             target_expr = VariableGetExpression(
                 variable_name=var_name,
                 is_self_variable=is_self_context,
-                source_location=self._create_source_location(node)
+                source_location=create_source_location(node)
             )
         
         # 创建赋值节点
@@ -414,11 +458,36 @@ class GraphAnalyzer:
             target=target_expr,
             value_expression=value_expr,
             is_local_variable=not is_self_context and not is_property_access,
-            source_location=self._create_source_location(node)
+            source_location=create_source_location(node)
         )
         
         return assignment
     
+    def _process_call_array_function(self, context: AnalysisContext, node: GraphNode) -> Optional[ASTNode]:
+        """
+        处理数组函数调用节点
+        K2Node_CallArrayFunction -> FunctionCallNode or FunctionCallExpression
+        使用重构后的公共逻辑减少代码重复
+        """
+        # 提取函数名称（数组函数的特殊处理）
+        function_name = self._extract_function_reference(node)
+        
+        # 查找目标数组引脚（数组函数的特殊目标引脚）
+        target_pin = find_pin(node, "TargetArray", "input")
+        if not target_pin:
+            target_pin = find_pin(node, "Array", "input")
+        
+        target_expr = None
+        if target_pin:
+            target_expr = self._resolve_data_expression(context, target_pin)
+        
+        # 解析函数参数（使用公共逻辑，排除数组函数的特殊引脚）
+        exclude_pins = {"TargetArray", "Array"}
+        arguments = self._parse_function_arguments(context, node, exclude_pins)
+        
+        # 使用公共逻辑创建函数调用节点
+        return self._create_function_call_node(context, node, function_name, target_expr, arguments)
+
     def _build_property_access_expression(self, context: AnalysisContext, node: GraphNode) -> Expression:
         """
         构建属性访问表达式，支持递归解析嵌套访问链
@@ -428,7 +497,7 @@ class GraphAnalyzer:
         var_name, is_self_context = self._extract_variable_reference(node)
         
         # 检查是否有 self 引脚连接（表示这是一个属性访问）
-        self_pin = self._find_pin(node, "self", "input")
+        self_pin = find_pin(node, "self", "input")
         
         if self_pin and self_pin.linked_to:
             # 有 self 引脚连接，递归解析基础对象
@@ -438,7 +507,7 @@ class GraphAnalyzer:
             return PropertyAccessNode(
                 target=base_expression,
                 property_name=var_name,
-                source_location=self._create_source_location(node),
+                source_location=create_source_location(node),
                 ue_type="property_access"
             )
         else:
@@ -446,54 +515,38 @@ class GraphAnalyzer:
             return VariableGetExpression(
                 variable_name=var_name,
                 is_self_variable=is_self_context,
-                source_location=self._create_source_location(node),
+                source_location=create_source_location(node),
                 ue_type="variable_reference"
             )
     
     def _process_call_function(self, context: AnalysisContext, node: GraphNode) -> Optional[ASTNode]:
         """
         处理函数调用节点
-        根据是否有exec引脚决定返回FunctionCallNode还是FunctionCallExpression
+        使用重构后的公共逻辑减少代码重复
         """
-        # 提取函数信息
+        # 提取函数信息（使用公共逻辑）
         func_name = self._extract_function_reference(node)
         
-        # 检查是否有执行引脚（决定是语句还是表达式）
-        has_exec = any(pin.pin_type == "exec" for pin in node.pins)
-        
-        # 解析目标对象（self引脚）
+        # 解析目标对象（self引脚，普通函数调用的特殊处理）
         target_expr = None
-        self_pin = self._find_pin(node, "self", "input")
+        self_pin = find_pin(node, "self", "input")
         if self_pin and self_pin.linked_to:
             target_expr = self._resolve_data_expression(context, self_pin)
         
-        # 解析参数
+        # 解析参数（使用公共逻辑）
         arguments = self._parse_function_arguments(context, node)
         
-        if has_exec:
-            # 有执行引脚的函数调用是语句
-            call_node = FunctionCallNode(
-                target=target_expr,
-                function_name=func_name,
-                arguments=arguments,
-                source_location=self._create_source_location(node)
-            )
-            
-            # 处理返回值赋值
+        # 使用公共逻辑创建函数调用节点
+        call_node = self._create_function_call_node(context, node, func_name, target_expr, arguments)
+        
+        # 处理返回值赋值（保留原有的特殊逻辑）
+        if isinstance(call_node, FunctionCallNode):
             for pin in node.pins:
                 if pin.direction == "output" and pin.pin_type != "exec":
                     # 返回值处理暂未实现
                     pass
-            
-            return call_node
-        else:
-            # 纯函数调用是表达式
-            return FunctionCallExpression(
-                target=target_expr,
-                function_name=func_name,
-                arguments=arguments,
-                source_location=self._create_source_location(node)
-            )
+        
+        return call_node
     
     def _process_if_then_else(self, context: AnalysisContext, node: GraphNode) -> Optional[BranchNode]:
         """
@@ -501,7 +554,7 @@ class GraphAnalyzer:
         K2Node_IfThenElse -> BranchNode
         """
         # 查找条件引脚
-        condition_pin = self._find_pin(node, "Condition", "input")
+        condition_pin = find_pin(node, "Condition", "input")
         condition_expr = self._resolve_data_expression(context, condition_pin) if condition_pin else LiteralExpression(
             value="true",
             literal_type="bool"
@@ -512,20 +565,20 @@ class GraphAnalyzer:
             condition=condition_expr,
             true_branch=ExecutionBlock(),
             false_branch=ExecutionBlock(),
-            source_location=self._create_source_location(node)
+            source_location=create_source_location(node)
         )
         
         # 处理true分支
-        true_pin = self._find_pin(node, "then", "output")
+        true_pin = find_pin(node, "then", "output")
         if not true_pin:
-            true_pin = self._find_pin(node, "true", "output")
+            true_pin = find_pin(node, "true", "output")
         if true_pin:
             self._follow_execution_flow(context, true_pin, branch_node.true_branch.statements)
         
         # 处理false分支
-        false_pin = self._find_pin(node, "else", "output")
+        false_pin = find_pin(node, "else", "output")
         if not false_pin:
-            false_pin = self._find_pin(node, "false", "output")
+            false_pin = find_pin(node, "false", "output")
         if false_pin:
             self._follow_execution_flow(context, false_pin, branch_node.false_branch.statements)
         
@@ -537,7 +590,7 @@ class GraphAnalyzer:
         K2Node_ExecutionSequence -> ExecutionBlock (包含多个执行流)
         """
         # 执行序列节点会有多个输出执行引脚，按顺序执行
-        sequence_block = ExecutionBlock(source_location=self._create_source_location(node))
+        sequence_block = ExecutionBlock(source_location=create_source_location(node))
         
         # 查找所有输出执行引脚，按名称排序
         output_exec_pins = []
@@ -591,15 +644,15 @@ class GraphAnalyzer:
         返回 NodeProcessingResult 以支持完整的执行流追踪
         """
         # 查找数组输入引脚
-        array_pin = self._find_pin(node, "Array", "input")
+        array_pin = find_pin(node, "Array", "input")
         collection_expr = self._resolve_data_expression(context, array_pin) if array_pin else LiteralExpression(
             value="[]",
             literal_type="array"
         )
         
         # 获取循环输出引脚，用于建立 pin→AST 映射
-        element_pin = self._find_pin(node, "Array Element", "output")
-        index_pin = self._find_pin(node, "Array Index", "output")
+        element_pin = find_pin(node, "Array Element", "output")
+        index_pin = find_pin(node, "Array Index", "output")
         
         # 创建 LoopVariableExpression 实例
         loop_id = node.node_guid  # 使用节点 GUID 作为循环 ID
@@ -640,7 +693,7 @@ class GraphAnalyzer:
             item_declaration=item_declaration,
             index_declaration=index_declaration,
             body=ExecutionBlock(),
-            source_location=self._create_source_location(node)
+            source_location=create_source_location(node)
         )
         
         # 在新作用域中处理循环体
@@ -660,12 +713,12 @@ class GraphAnalyzer:
             )
             
             # 处理循环体
-            loop_body_pin = self._find_pin(node, "LoopBody", "output")
+            loop_body_pin = find_pin(node, "LoopBody", "output")
             if loop_body_pin:
                 self._follow_execution_flow(context, loop_body_pin, loop_node.body.statements)
         
         # 关键修复：查找并返回 Completed 引脚，以便主执行流可以继续
-        completed_pin = self._find_pin(node, "Completed", "output")
+        completed_pin = find_pin(node, "Completed", "output")
         
         return NodeProcessingResult(
             node=loop_node,
@@ -677,7 +730,7 @@ class GraphAnalyzer:
         处理While循环宏
         """
         # 查找条件引脚
-        condition_pin = self._find_pin(node, "Condition", "input")
+        condition_pin = find_pin(node, "Condition", "input")
         condition_expr = self._resolve_data_expression(context, condition_pin) if condition_pin else LiteralExpression(
             value="true",
             literal_type="bool"
@@ -688,11 +741,11 @@ class GraphAnalyzer:
             loop_type=LoopType.WHILE,
             condition_expression=condition_expr,
             body=ExecutionBlock(),
-            source_location=self._create_source_location(node)
+            source_location=create_source_location(node)
         )
         
         # 处理循环体
-        loop_body_pin = self._find_pin(node, "LoopBody", "output")
+        loop_body_pin = find_pin(node, "LoopBody", "output")
         if loop_body_pin:
             self._follow_execution_flow(context, loop_body_pin, loop_node.body.statements)
         
@@ -725,7 +778,7 @@ class GraphAnalyzer:
             target=None,
             function_name=f"macro_{macro_name}",
             arguments=arguments,
-            source_location=self._create_source_location(node)
+            source_location=create_source_location(node)
         )
     
     def _process_latent_ability_call(self, context: AnalysisContext, node: GraphNode) -> Optional[LatentActionNode]:
@@ -742,7 +795,7 @@ class GraphAnalyzer:
         
         # 解析目标对象（self引脚）
         target_expr = None
-        self_pin = self._find_pin(node, "self", "input")
+        self_pin = find_pin(node, "self", "input")
         if self_pin and self_pin.linked_to:
             target_expr = self._resolve_data_expression(context, self_pin)
         
@@ -760,7 +813,7 @@ class GraphAnalyzer:
             target=target_expr,
             function_name=proxy_factory_func,
             arguments=arguments,
-            source_location=self._create_source_location(node)
+            source_location=create_source_location(node)
         )
         
         # 创建回调执行引脚字典
@@ -783,7 +836,7 @@ class GraphAnalyzer:
                             variable_name=data_pin.pin_name,
                             variable_type=data_pin.pin_type,
                             is_callback_parameter=True,
-                            source_location=self._create_source_location(node)
+                            source_location=create_source_location(node)
                         )
                         callback_declarations.append(var_declaration)
                         
@@ -792,7 +845,7 @@ class GraphAnalyzer:
                         var_expr = VariableGetExpression(
                             variable_name=data_pin.pin_name,
                             is_self_variable=False,  # 回调参数不是self变量
-                            source_location=self._create_source_location(node)
+                            source_location=create_source_location(node)
                         )
                         context.pin_ast_map[data_pin.pin_id] = var_expr
                     
@@ -819,7 +872,7 @@ class GraphAnalyzer:
         latent_node = LatentActionNode(
             call=call_node,
             callback_exec_pins=callback_exec_pins,
-            source_location=self._create_source_location(node)
+            source_location=create_source_location(node)
         )
         
         return latent_node
@@ -866,11 +919,11 @@ class GraphAnalyzer:
             event_name=event_name,
             parameters=parameters,
             body=ExecutionBlock(),
-            source_location=self._create_source_location(node)
+            source_location=create_source_location(node)
         )
         
         # 跟随执行流构建事件体
-        exec_pin = self._find_pin(node, "then", "output")
+        exec_pin = find_pin(node, "then", "output")
         if not exec_pin:
             # 某些自定义事件可能使用不同的执行输出引脚名称
             for pin in node.pins:
@@ -922,7 +975,7 @@ class GraphAnalyzer:
             target_type_name = "UnknownType"
         
         # 第二步：查找输入对象引脚并解析源表达式
-        object_pin = self._find_pin(node, "Object", "input")
+        object_pin = find_pin(node, "Object", "input")
         if not object_pin:
             # 尝试查找任何非exec的输入引脚
             for pin in node.pins:
@@ -939,11 +992,11 @@ class GraphAnalyzer:
         cast_expr = CastExpression(
             source_expression=source_expr,
             target_type=target_type_name,
-            source_location=self._create_source_location(node)
+            source_location=create_source_location(node)
         )
         
         # 第四步：构建true分支（转换成功）
-        true_branch = ExecutionBlock(source_location=self._create_source_location(node))
+        true_branch = ExecutionBlock(source_location=create_source_location(node))
         
         # 在true分支中，首先声明转换后的变量
         output_var_name = f"As{target_type_name}"  # 遵循UE蓝图的命名约定
@@ -953,20 +1006,20 @@ class GraphAnalyzer:
             initial_value=cast_expr,  # 变量的初始值就是转换表达式
             is_loop_variable=False,
             is_callback_parameter=False,
-            source_location=self._create_source_location(node)
+            source_location=create_source_location(node)
         )
         true_branch.statements.append(var_declaration)
         
         # 然后跟随then引脚的执行流
-        then_pin = self._find_pin(node, "then", "output")
+        then_pin = find_pin(node, "then", "output")
         if then_pin and then_pin.linked_to:
             self._follow_execution_flow(context, then_pin, true_branch.statements)
         
         # 第五步：构建false分支（转换失败）
-        false_branch = ExecutionBlock(source_location=self._create_source_location(node))
+        false_branch = ExecutionBlock(source_location=create_source_location(node))
         
         # 跟随CastFailed引脚的执行流
-        cast_failed_pin = self._find_pin(node, "CastFailed", "output")
+        cast_failed_pin = find_pin(node, "CastFailed", "output")
         if cast_failed_pin and cast_failed_pin.linked_to:
             self._follow_execution_flow(context, cast_failed_pin, false_branch.statements)
         
@@ -975,7 +1028,7 @@ class GraphAnalyzer:
             condition=cast_expr,  # 转换表达式本身作为条件
             true_branch=true_branch,
             false_branch=false_branch if false_branch.statements else None,  # 如果false分支为空则设为None
-            source_location=self._create_source_location(node)
+            source_location=create_source_location(node)
         )
         
         return branch_node
@@ -997,10 +1050,10 @@ class GraphAnalyzer:
                 delegate_name = match.group(1)
         
         # 第二步：解析赋值目标（左值）- 通过self引脚
-        self_pin = self._find_pin(node, "self", "input")
+        self_pin = find_pin(node, "self", "input")
         if not self_pin:
             # 兼容性：尝试查找Target引脚
-            self_pin = self._find_pin(node, "Target", "input")
+            self_pin = find_pin(node, "Target", "input")
         
         if self_pin:
             # 解析目标对象表达式
@@ -1009,20 +1062,20 @@ class GraphAnalyzer:
             target_expr = PropertyAccessNode(
                 target=target_object_expr,
                 property_name=delegate_name,
-                source_location=self._create_source_location(node)
+                source_location=create_source_location(node)
             )
         else:
             # 如果没有self引脚，假设是简单变量赋值
             target_expr = VariableGetExpression(
                 variable_name=delegate_name,
-                source_location=self._create_source_location(node)
+                source_location=create_source_location(node)
             )
         
         # 第三步：解析赋值源（右值）- 通过Delegate引脚
-        delegate_pin = self._find_pin(node, "Delegate", "input")
+        delegate_pin = find_pin(node, "Delegate", "input")
         if not delegate_pin:
             # 尝试查找Event引脚
-            delegate_pin = self._find_pin(node, "Event", "input")
+            delegate_pin = find_pin(node, "Event", "input")
         
         if delegate_pin:
             # 解析委托源表达式
@@ -1032,7 +1085,7 @@ class GraphAnalyzer:
             value_expr = LiteralExpression(
                 value="UnknownDelegate",
                 literal_type="delegate",
-                source_location=self._create_source_location(node)
+                source_location=create_source_location(node)
             )
         
         # 第四步：创建增强的赋值节点
@@ -1040,68 +1093,12 @@ class GraphAnalyzer:
             target=target_expr,  # 使用新的target字段
             value_expression=value_expr,
             is_local_variable=False,  # 委托通常是成员变量
-            source_location=self._create_source_location(node)
+            source_location=create_source_location(node)
         )
         
         return assignment
     
-    def _process_call_array_function(self, context: AnalysisContext, node: GraphNode) -> Optional[ASTNode]:
-        """
-        处理数组函数调用节点
-        K2Node_CallArrayFunction -> FunctionCallNode or FunctionCallExpression
-        """
-        # 提取函数名称
-        function_ref = node.properties.get("FunctionReference", "")
-        if isinstance(function_ref, dict):
-            function_name = function_ref.get("MemberName", "")
-        elif isinstance(function_ref, str) and "MemberName=" in function_ref:
-            import re
-            match = re.search(r'MemberName="([^"]+)"', function_ref)
-            function_name = match.group(1) if match else ""
-        else:
-            function_name = ""
-        
-        if not function_name:
-            function_name = node.properties.get("ArrayFunction", "UnknownArrayFunction")
-        
-        # 确定是否有执行引脚（决定生成FunctionCallNode还是FunctionCallExpression）
-        has_exec_pins = any(pin.pin_type == "exec" for pin in node.pins)
-        
-        # 查找目标数组引脚
-        target_pin = self._find_pin(node, "TargetArray", "input")
-        if not target_pin:
-            target_pin = self._find_pin(node, "Array", "input")
-        
-        target_expr = None
-        if target_pin:
-            target_expr = self._resolve_data_expression(context, target_pin)
-        
-        # 解析函数参数
-        arguments = []
-        for pin in node.pins:
-            if (pin.direction == "input" and 
-                pin.pin_type not in ["exec"] and
-                pin.pin_name not in ["TargetArray", "Array"]):
-                arg_expr = self._resolve_data_expression(context, pin)
-                arguments.append((pin.pin_name, arg_expr))
-        
-        # 根据是否有执行引脚决定返回类型
-        if has_exec_pins:
-            # 有执行引脚，生成FunctionCallNode
-            return FunctionCallNode(
-                target=target_expr,
-                function_name=function_name,
-                arguments=arguments,
-                source_location=self._create_source_location(node)
-            )
-        else:
-            # 纯函数调用，生成FunctionCallExpression
-            return FunctionCallExpression(
-                target=target_expr,
-                function_name=function_name,
-                arguments=arguments,
-                source_location=self._create_source_location(node)
-            )
+
     
     def _infer_callback_parameters(self, callback_name: str, node: GraphNode) -> List[VariableDeclaration]:
         """
@@ -1256,7 +1253,7 @@ class GraphAnalyzer:
                 continue
             
             # 查找下一个执行输出引脚
-            current_pin = self._find_pin(target_node, "then", "output")
+            current_pin = find_pin(target_node, "then", "output")
             if not current_pin:
                 # 某些节点可能有不同名称的执行输出
                 for pin in target_node.pins:
@@ -1291,8 +1288,8 @@ class GraphAnalyzer:
                 )
             
             # 没有找到符号，使用默认值并提取类型信息
-            default_value = self._get_pin_default_value(pin)
-            ue_type = self._extract_pin_type(pin)
+            default_value = get_pin_default_value(pin)
+            ue_type = extract_pin_type(pin)
             return LiteralExpression(
                 value=default_value, 
                 literal_type="auto",
@@ -1354,14 +1351,14 @@ class GraphAnalyzer:
             temp_var_decl = TemporaryVariableDeclaration(
                 variable_name=temp_var_name,
                 value_expression=source_expr,
-                source_location=self._create_source_location(source_node)
+                source_location=create_source_location(source_node)
             )
             context.scope_prelude.append(temp_var_decl)
             
             # 创建临时变量引用表达式
             result = TemporaryVariableExpression(
                 temp_var_name=temp_var_name,
-                source_location=self._create_source_location(source_node)
+                source_location=create_source_location(source_node)
             )
         else:
             # 直接解析表达式（传递访问路径）
@@ -1511,7 +1508,7 @@ class GraphAnalyzer:
             return VariableGetExpression(
                 variable_name=var_name,
                 is_self_variable=False,  # 转换后的变量是局部变量
-                source_location=self._create_source_location(node)
+                source_location=create_source_location(node)
             )
         
         # K2Node_CustomEvent - 自定义事件（作为事件引用）
@@ -1519,7 +1516,7 @@ class GraphAnalyzer:
             event_name = node.properties.get("CustomFunctionName", "UnknownEvent")
             return EventReferenceExpression(
                 event_name=event_name,
-                source_location=self._create_source_location(node)
+                source_location=create_source_location(node)
             )
         
         # K2Node_Event - 标准事件（作为事件引用）
@@ -1535,7 +1532,7 @@ class GraphAnalyzer:
             
             return EventReferenceExpression(
                 event_name=event_name,
-                source_location=self._create_source_location(node)
+                source_location=create_source_location(node)
             )
         
         # 默认处理：尝试作为函数调用
@@ -1550,7 +1547,7 @@ class GraphAnalyzer:
         
         # 解析目标对象（self引脚）
         target_expr = None
-        self_pin = self._find_pin(node, "self", "input")
+        self_pin = find_pin(node, "self", "input")
         if self_pin and self_pin.linked_to:
             target_expr = self._resolve_data_expression(context, self_pin)
         
@@ -1561,7 +1558,7 @@ class GraphAnalyzer:
             target=target_expr,
             function_name=func_name,
             arguments=arguments,
-            source_location=self._create_source_location(node)
+            source_location=create_source_location(node)
         )
     
     def _process_literal_node(self, node: GraphNode) -> LiteralExpression:
@@ -1595,7 +1592,7 @@ class GraphAnalyzer:
             target=None,
             function_name=f"math_{op}",
             arguments=inputs,
-            source_location=self._create_source_location(node)
+            source_location=create_source_location(node)
         )
     
     def _process_array_access_node(self, context: AnalysisContext, node: GraphNode) -> FunctionCallExpression:
@@ -1603,8 +1600,8 @@ class GraphAnalyzer:
         处理数组访问节点
         """
         # 查找数组和索引引脚
-        array_pin = self._find_pin(node, "TargetArray", "input")
-        index_pin = self._find_pin(node, "Index", "input")
+        array_pin = find_pin(node, "TargetArray", "input")
+        index_pin = find_pin(node, "Index", "input")
         
         array_expr = self._resolve_data_expression(context, array_pin) if array_pin else LiteralExpression("null", "null")
         index_expr = self._resolve_data_expression(context, index_pin) if index_pin else LiteralExpression("0", "int")
@@ -1613,48 +1610,6 @@ class GraphAnalyzer:
             target=array_expr,
             function_name="get_item",
             arguments=[("index", index_expr)],
-            source_location=self._create_source_location(node)
+            source_location=create_source_location(node)
         )
     
-    # ========================================================================
-    # 通用工具函数
-    # ========================================================================
-    
-    def _find_pin(self, node: GraphNode, pin_name: str, direction: str) -> Optional[GraphPin]:
-        """在节点中查找指定名称和方向的引脚"""
-        return next((pin for pin in node.pins 
-                    if pin.pin_name == pin_name and pin.direction == direction), None)
-    
-    def _create_source_location(self, node: GraphNode) -> SourceLocation:
-        """创建源位置信息"""
-        return SourceLocation(node_guid=node.node_guid, node_name=node.node_name)
-    
-    def _get_pin_default_value(self, pin: GraphPin) -> Any:
-        """获取引脚的默认值"""
-        return pin.default_value if pin and pin.default_value is not None else None
-    
-    def _extract_pin_type(self, pin: GraphPin) -> str:
-        """
-        从引脚中提取 UE 类型信息
-        用于为 AST 节点附加类型信息
-        """
-        if not pin:
-            return "unknown"
-        
-        # 基本类型映射
-        type_mapping = {
-            "exec": "exec",
-            "bool": "bool", 
-            "int": "int",
-            "float": "float",
-            "string": "string",
-            "object": "object",
-            "struct": "struct",
-            "delegate": "delegate"
-        }
-        
-        base_type = type_mapping.get(pin.pin_type, pin.pin_type)
-        
-        # 对于结构体类型，尝试从 PinSubCategoryObject 中提取更具体的类型
-        # 这需要从原始引脚数据中解析，目前返回基本类型
-        return base_type 

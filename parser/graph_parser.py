@@ -23,6 +23,10 @@ def parse_graph_nodes(graph_text: str) -> List[GraphNode]:
     while i < len(lines):
         line = lines[i].strip()
         
+        # 移除可能的BOM字符（通常出现在第一行）
+        if line.startswith('\ufeff'):
+            line = line[1:]
+        
         # 检测主节点开始（不是引脚节点）
         if line.startswith('Begin Object Class=') and 'Pin' not in line:
             # 解析单个节点及其所有内容
@@ -43,6 +47,10 @@ def _parse_single_node(lines: List[str], start_index: int) -> tuple[Optional[Gra
     """
     i = start_index
     line = lines[i].strip()
+    
+    # 移除可能的BOM字符（通常出现在第一行）
+    if line.startswith('\ufeff'):
+        line = line[1:]
     
     # 解析节点开始行
     begin_match = re.search(r'Begin Object Class=(?P<class>[\w./_]+) Name="(?P<name>[\w_]+)"', line)
