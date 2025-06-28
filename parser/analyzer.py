@@ -24,8 +24,12 @@ from .models import (
     NodeProcessingResult
 )
 from .symbol_table import SymbolTable, Symbol
-from .common import find_pin, create_source_location, get_pin_default_value, extract_pin_type
-from .common import register_processor, node_processor_registry
+from .common import (
+    find_pin, create_source_location, get_pin_default_value, extract_pin_type,
+    extract_variable_reference, extract_function_reference, 
+    parse_function_arguments, should_create_temp_variable_for_node, generate_temp_variable_name,
+    has_execution_pins, node_processor_registry
+)
 
 # 导入处理器模块以触发装饰器注册
 from . import processors
@@ -157,7 +161,7 @@ class GraphAnalyzer:
             )
     
     # ========================================================================
-    # 辅助方法
+    # 核心遍历方法
     # ========================================================================
     
     def _follow_execution_flow(self, context: AnalysisContext, start_pin: GraphPin, statements: List[Statement]):
@@ -183,8 +187,6 @@ class GraphAnalyzer:
             
             if not target_node:
                 break
-            
-            # 注意：不在这里检查visited_nodes，因为_process_node会处理这个逻辑
             
             # 处理目标节点
             ast_node = self._process_node(context, target_node)
@@ -248,95 +250,52 @@ class GraphAnalyzer:
         source_node_id = source_link.get("node_guid") or source_link.get("node_name")
         source_pin_id = source_link.get("pin_id")
         
-        # 循环检测：检查是否已经在访问路径中
-        path_key = f"{source_node_id}:{source_pin_id}"
-        if path_key in visited_path:
-            # 检测到循环引用，返回特殊节点
-            return LiteralExpression(
-                value="<circular_reference>",
-                literal_type="error",
-                expression_type="circular_ref"
-            )
-        
-        # 关键修复：检查源引脚是否在 pin_ast_map 中（循环变量等特殊引脚）
-        if source_pin_id and source_pin_id in context.pin_ast_map:
-            return context.pin_ast_map[source_pin_id]
-        
-        # 生成缓存键
-        cache_key = f"{source_node_id}:{source_pin_id}"
-        
-        # 检查缓存
-        if cache_key in context.memoization_cache:
-            return context.memoization_cache[cache_key]
-        
         # 查找源节点
-        source_node = self._find_node_by_id(context, source_node_id)
+        source_node = None
+        if source_node_id:
+            source_node = self._find_node_by_id(context, source_node_id)
+        elif source_pin_id:
+            source_node = self._find_node_by_pin_id(context, source_pin_id)
+        
         if not source_node:
-            return LiteralExpression(value="<node_not_found>", literal_type="error")
+            return LiteralExpression(value="null", literal_type="null")
         
-        # 将当前路径添加到访问路径中
-        visited_path.add(path_key)
+        # 循环检测
+        source_key = f"{source_node.node_guid}:{source_pin_id}"
+        if source_key in visited_path:
+            return LiteralExpression(value="circular_ref", literal_type="error")
         
-        # 首先检查源节点是否产生符号表中的变量
-        result_expr = self._try_resolve_from_symbol_table(context, source_node, source_pin_id)
-        if result_expr:
-            # 从访问路径中移除当前路径
-            visited_path.remove(path_key)
-            context.memoization_cache[cache_key] = result_expr
-            return result_expr
+        visited_path.add(source_key)
         
-        # 检查是否需要创建临时变量
-        pin_usage_count = context.pin_usage_counts.get(cache_key, 0)
-        if pin_usage_count > 1 and self._should_create_temp_variable_for_node(source_node):
-            # 创建临时变量
-            temp_var_name = self._generate_temp_variable_name(context, source_node, source_pin_id)
-            
-            # 解析源表达式（传递访问路径）
-            source_expr = self._resolve_node_expression(context, source_node, source_pin_id, visited_path)
-            
-            # 创建临时变量声明并添加到scope_prelude
-            temp_var_decl = TemporaryVariableDeclaration(
-                variable_name=temp_var_name,
-                value_expression=source_expr,
-                source_location=create_source_location(source_node)
-            )
-            context.scope_prelude.append(temp_var_decl)
-            
-            # 创建临时变量引用表达式
-            result = TemporaryVariableExpression(
-                temp_var_name=temp_var_name,
-                source_location=create_source_location(source_node)
-            )
-        else:
-            # 直接解析表达式（传递访问路径）
+        try:
+            # 解析源节点表达式
             result = self._resolve_node_expression(context, source_node, source_pin_id, visited_path)
-        
-        # 从访问路径中移除当前路径
-        visited_path.remove(path_key)
-        
-        # 缓存结果
-        context.memoization_cache[cache_key] = result
-        return result
+            return result
+        finally:
+            visited_path.remove(source_key)
+    
+    # ========================================================================
+    # 辅助方法
+    # ========================================================================
     
     def _find_node_by_id(self, context: AnalysisContext, node_id: str) -> Optional[GraphNode]:
         """
-        根据节点ID查找节点
+        通过节点ID查找节点
         """
-        # 先从graph的nodes字典中查找
-        node = context.graph.nodes.get(node_id)
-        if node:
-            return node
+        # 先尝试直接查找
+        if node_id in context.graph.nodes:
+            return context.graph.nodes[node_id]
         
-        # 尝试通过节点名查找
+        # 如果直接查找失败，遍历所有节点查找匹配的GUID或名称
         for node in context.graph.nodes.values():
-            if node.node_name == node_id:
+            if node.node_guid == node_id or node.node_name == node_id:
                 return node
         
         return None
     
     def _find_node_by_pin_id(self, context: AnalysisContext, pin_id: str) -> Optional[GraphNode]:
         """
-        根据引脚ID查找拥有该引脚的节点
+        通过引脚ID查找包含该引脚的节点
         """
         for node in context.graph.nodes.values():
             for pin in node.pins:
@@ -344,150 +303,90 @@ class GraphAnalyzer:
                     return node
         return None
     
-    def _should_create_temp_variable_for_node(self, source_node: GraphNode) -> bool:
-        """
-        判断是否需要为节点创建临时变量
-        """
-        # 简单的变量获取不需要临时变量
-        if 'K2Node_VariableGet' in source_node.class_type:
-            return False
-        # 字面量节点也不需要临时变量
-        if 'K2Node_Literal' in source_node.class_type:
-            return False
-        return True
-    
-    def _generate_temp_variable_name(self, context: AnalysisContext, source_node: GraphNode, source_pin_id: str) -> str:
-        """
-        生成临时变量名
-        """
-        # 基于节点类型和函数名生成有意义的临时变量名
-        if 'K2Node_CallFunction' in source_node.class_type:
-            func_ref = source_node.properties.get("FunctionReference", "")
-            if isinstance(func_ref, dict):
-                func_name = func_ref.get("MemberName", "func")
-            elif isinstance(func_ref, str) and "MemberName=" in func_ref:
-                import re
-                match = re.search(r'MemberName="([^"]+)"', func_ref)
-                func_name = match.group(1) if match else "func"
-            else:
-                func_name = "func"
-            
-            # 简化函数名
-            func_name = func_name.replace("BP_", "").replace("K2_", "")
-            base_name = f"temp_{func_name.lower()}"
-        else:
-            # 其他节点类型
-            node_type = source_node.class_type.split('.')[-1] if '.' in source_node.class_type else source_node.class_type
-            base_name = f"temp_{node_type.lower().replace('k2node_', '')}"
-        
-        # 确保变量名唯一 - 检查当前作用域的前置语句中的临时变量声明
-        counter = 1
-        temp_name = base_name
-        while any(isinstance(stmt, TemporaryVariableDeclaration) and stmt.variable_name == temp_name 
-                  for stmt in context.scope_prelude):
-            temp_name = f"{base_name}_{counter}"
-            counter += 1
-        
-        return temp_name
-    
     def _resolve_node_expression(self, context: AnalysisContext, node: GraphNode, pin_id: str, visited_path: Optional[Set[str]] = None) -> Expression:
         """
-        根据节点类型解析为表达式
+        解析节点的表达式
         """
-        # K2Node_VariableGet - 变量获取（使用新的递归解析）
-        if 'K2Node_VariableGet' in node.class_type:
+        # 优先检查符号表解析
+        symbol_expr = self._try_resolve_from_symbol_table(context, node, pin_id)
+        if symbol_expr:
+            return symbol_expr
+        
+        # 检查是否需要创建临时变量
+        pin_key = f"{node.node_guid}:{pin_id}"
+        usage_count = context.pin_usage_counts.get(pin_key, 0)
+        
+        if usage_count > 1 and should_create_temp_variable_for_node(node):
+            # 创建临时变量
+            temp_var_name = generate_temp_variable_name(node, pin_id)
+            
+            # 检查是否已经创建过这个临时变量
+            if pin_key not in context.memoization_cache:
+                # 解析原始表达式
+                original_expr = self._resolve_node_expression_direct(context, node, pin_id, visited_path)
+                
+                # 创建临时变量声明
+                temp_decl = TemporaryVariableDeclaration(
+                    variable_name=temp_var_name,
+                    value_expression=original_expr,
+                    source_location=create_source_location(node)
+                )
+                
+                # 添加到作用域前置语句
+                context.scope_prelude.append(temp_decl)
+                
+                # 创建临时变量表达式
+                temp_expr = TemporaryVariableExpression(
+                    temp_var_name=temp_var_name,
+                    source_location=create_source_location(node)
+                )
+                
+                # 缓存结果
+                context.memoization_cache[pin_key] = temp_expr
+            
+            return context.memoization_cache[pin_key]
+        else:
+            # 直接解析表达式
+            return self._resolve_node_expression_direct(context, node, pin_id, visited_path)
+    
+    def _resolve_node_expression_direct(self, context: AnalysisContext, node: GraphNode, pin_id: str, visited_path: Optional[Set[str]] = None) -> Expression:
+        """
+        直接解析节点表达式，不使用临时变量
+        """
+        # 根据节点类型进行特殊处理
+        if "K2Node_VariableGet" in node.class_type:
             return self._build_property_access_expression(context, node)
-        
-        # K2Node_Knot - 连接节点（透传）
-        elif 'K2Node_Knot' in node.class_type:
-            # Knot节点只是透传数据，查找输入引脚并递归解析
-            input_pin = None
-            for pin in node.pins:
-                if pin.direction == "input" and pin.linked_to:
-                    input_pin = pin
-                    break
+        elif "K2Node_CallFunction" in node.class_type:
+            return self._process_call_function_as_expression(context, node)
+        elif "K2Node_Literal" in node.class_type:
+            # 字面量节点
+            default_value = node.properties.get("ObjectRef", "")
+            return LiteralExpression(value=default_value, literal_type="literal")
+        else:
+            # 通用处理：尝试使用处理器
+            processor = node_processor_registry.get_processor(node.class_type)
+            if processor:
+                result = processor(self, context, node)
+                if isinstance(result, Expression):
+                    return result
+                elif isinstance(result, Statement):
+                    # 如果处理器返回语句，创建一个表示该语句结果的表达式
+                    return TemporaryVariableExpression(
+                        temp_var_name=f"stmt_result_{node.node_guid[:8]}",
+                        source_location=create_source_location(node)
+                    )
             
-            if input_pin:
-                return self._resolve_data_expression(context, input_pin, visited_path)
-            else:
-                return LiteralExpression(value="null", literal_type="null")
-        
-        # K2Node_CallFunction - 函数调用（纯函数）
-        elif 'K2Node_CallFunction' in node.class_type:
-            # 检查是否是纯函数
-            is_pure = node.properties.get("bIsPureFunc", False)
-            if is_pure or not any(pin.pin_type == "exec" for pin in node.pins):
-                expr = self._process_call_function_as_expression(context, node)
-                if isinstance(expr, FunctionCallExpression):
-                    return expr
-        
-        # K2Node_Literal, K2Node_MathExpression, K2Node_GetArrayItem 现在通过注册表处理
-        elif ('K2Node_Literal' in node.class_type or 
-              'K2Node_MathExpression' in node.class_type or 
-              'K2Node_GetArrayItem' in node.class_type):
-            # 尝试通过注册表处理
-            result = self._process_node(context, node)
-            if result and hasattr(result, 'accept'):  # 检查是否是表达式
-                return result
-        
-        # K2Node_DynamicCast - 动态类型转换（返回转换后的变量引用）
-        elif 'K2Node_DynamicCast' in node.class_type:
-            # 提取目标类型信息
-            target_type = node.properties.get("TargetType", "")
-            if isinstance(target_type, str) and "'" in target_type:
-                # 格式如: /Script/CoreUObject.Class'/Script/XiangYang.AttributesMenuController'
-                parts = target_type.split("'")
-                if len(parts) >= 2:
-                    class_path = parts[-2]  # 取倒数第二个部分
-                    target_type_name = class_path.split(".")[-1]  # 取最后一个点后的部分
-                else:
-                    target_type_name = target_type
-            else:
-                target_type_name = "UnknownType"
-            
-            # 返回对转换后变量的引用
-            var_name = f"As{target_type_name}"  # 遵循UE蓝图的命名约定
-            return VariableGetExpression(
-                variable_name=var_name,
-                is_self_variable=False,  # 转换后的变量是局部变量
-                source_location=create_source_location(node)
-            )
-        
-        # K2Node_CustomEvent - 自定义事件（作为事件引用）
-        elif 'K2Node_CustomEvent' in node.class_type:
-            event_name = node.properties.get("CustomFunctionName", "UnknownEvent")
-            return EventReferenceExpression(
-                event_name=event_name,
-                source_location=create_source_location(node)
-            )
-        
-        # K2Node_Event - 标准事件（作为事件引用）
-        elif 'K2Node_Event' in node.class_type:
-            event_ref = node.properties.get("EventReference", "")
-            event_name = "UnknownEvent"
-            
-            if isinstance(event_ref, str) and "MemberName=" in event_ref:
-                import re
-                match = re.search(r'MemberName="([^"]+)"', event_ref)
-                if match:
-                    event_name = match.group(1)
-            
-            return EventReferenceExpression(
-                event_name=event_name,
-                source_location=create_source_location(node)
-            )
-        
-        # 默认处理：尝试作为函数调用
-        return self._process_call_function_as_expression(context, node)
+            # 默认返回未知表达式
+            return LiteralExpression(value="UnknownExpression", literal_type="unknown")
     
     def _process_call_function_as_expression(self, context: AnalysisContext, node: GraphNode) -> FunctionCallExpression:
         """
         将函数调用节点处理为表达式
         """
         # 提取函数信息
-        func_name = self._extract_function_reference(node)
+        func_name = extract_function_reference(node)
         
-        # 解析目标对象（self引脚）
+        # 解析目标对象
         target_expr = None
         self_pin = find_pin(node, "self", "input")
         if self_pin and self_pin.linked_to:
@@ -503,113 +402,30 @@ class GraphAnalyzer:
             source_location=create_source_location(node)
         )
     
-
-    
-    def _infer_callback_parameters(self, callback_name: str, node: GraphNode) -> List[VariableDeclaration]:
+    def _parse_function_arguments(self, context: AnalysisContext, node: GraphNode, exclude_pins: set = None) -> List[Tuple[str, Expression]]:
         """
-        根据回调名称推断可能的参数声明
+        解析函数参数，返回带表达式的参数列表
         """
-        declarations = []
+        if exclude_pins is None:
+            exclude_pins = {"self"}
         
-        # 基于常见的回调模式推断参数
-        if "EventReceived" in callback_name:
-            # WaitGameplayEvent的EventReceived回调通常有Payload参数
-            # 首先声明主Payload变量
-            declarations.append(VariableDeclaration(
-                variable_name="Payload",
-                variable_type="GameplayEventData",
-                is_callback_parameter=True
-            ))
-            
-            # 然后声明Payload的所有子字段作为独立变量
-            for pin in node.pins:
-                if (pin.direction == "output" and 
-                    pin.pin_type not in ["exec"] and
-                    pin.pin_name.startswith("Payload_")):
-                    # 提取字段名（移除"Payload_"前缀）
-                    field_name = pin.pin_name[8:]  # 移除"Payload_"
-                    # 创建完整的变量名（保持原始格式以便查找）
-                    var_name = f"Payload {field_name.replace('_', ' ')}"
-                    declarations.append(VariableDeclaration(
-                        variable_name=var_name,
-                        variable_type="auto",
-                        is_callback_parameter=True
-                    ))
-        elif "Completed" in callback_name:
-            # 完成回调通常没有额外参数
-            pass
-        elif "Cancelled" in callback_name:
-            # 取消回调通常没有额外参数
-            pass
-        else:
-            # 对于未知回调类型，检查是否有相关的输出数据引脚
-            for pin in node.pins:
-                if (pin.direction == "output" and 
-                    pin.pin_type not in ["exec"] and
-                    callback_name.lower() in pin.pin_name.lower()):
-                    declarations.append(VariableDeclaration(
-                        variable_name=pin.pin_name,
-                        variable_type="auto",
-                        is_callback_parameter=True
-                    ))
+        arguments = []
         
-        return declarations
-    
-    def _try_resolve_from_symbol_table(self, context: AnalysisContext, source_node: GraphNode, source_pin_id: str) -> Optional[Expression]:
-        """
-        尝试从符号表解析表达式 - 重构后的简化版本
-        """
-        # 检查变量获取节点
-        if 'K2Node_VariableGet' in source_node.class_type:
-            var_name = self._extract_variable_name_from_node(source_node)
-            if var_name:
-                return self._create_expression_from_symbol(context, var_name)
-        
-        # 检查输出引脚名称
-        return self._check_output_pin_symbols(context, source_node, source_pin_id)
-    
-    def _extract_variable_name_from_node(self, node: GraphNode) -> str:
-        """从节点中提取变量名"""
-        var_reference = node.properties.get("VariableReference", "")
-        
-        if isinstance(var_reference, dict):
-            return var_reference.get("MemberName", "")
-        elif isinstance(var_reference, str) and "MemberName=" in var_reference:
-            import re
-            match = re.search(r'MemberName="([^"]+)"', var_reference)
-            return match.group(1) if match else ""
-        
-        return ""
-    
-    def _create_expression_from_symbol(self, context: AnalysisContext, var_name: str) -> Optional[Expression]:
-        """从符号创建表达式"""
-        symbol = context.symbol_table.lookup(var_name)
-        if symbol:
-            return VariableGetExpression(
-                variable_name=symbol.name,
-                is_self_variable=not (symbol.is_loop_variable or symbol.is_callback_parameter)
-            )
-        return None
-    
-    def _check_output_pin_symbols(self, context: AnalysisContext, node: GraphNode, pin_id: str) -> Optional[Expression]:
-        """检查输出引脚是否匹配符号表中的变量"""
         for pin in node.pins:
-            if pin.direction == "output" and pin.pin_id == pin_id:
-                symbol = context.symbol_table.lookup(pin.pin_name)
-                if symbol:
-                    return VariableGetExpression(
-                        variable_name=symbol.name,
-                        is_self_variable=not (symbol.is_loop_variable or symbol.is_callback_parameter)
-                    )
-        return None
+            if (pin.direction == "input" and 
+                pin.pin_type not in ["exec"] and
+                pin.pin_name not in exclude_pins):
+                arg_expr = self._resolve_data_expression(context, pin)
+                arguments.append((pin.pin_name, arg_expr))
+        
+        return arguments
     
     def _build_property_access_expression(self, context: AnalysisContext, node: GraphNode) -> Expression:
         """
         构建属性访问表达式，支持递归解析嵌套访问链
-        K2Node_VariableGet -> VariableGetExpression 或 PropertyAccessNode
         """
         # 提取当前节点的变量名
-        var_name, is_self_context = self._extract_variable_reference(node)
+        var_name, is_self_context = extract_variable_reference(node)
         
         # 检查是否有 self 引脚连接（表示这是一个属性访问）
         self_pin = find_pin(node, "self", "input")
@@ -634,107 +450,58 @@ class GraphAnalyzer:
                 ue_type="variable_reference"
             )
     
-    def _extract_variable_reference(self, node: GraphNode) -> Tuple[str, bool]:
-        """提取变量引用信息的公共方法 - 修复版本"""
-        var_reference = node.properties.get("VariableReference", "")
-        var_name = "UnknownVariable"
-        is_self_context = True  # 默认值
-        
+    def _try_resolve_from_symbol_table(self, context: AnalysisContext, source_node: GraphNode, source_pin_id: str) -> Optional[Expression]:
+        """
+        尝试从符号表解析表达式
+        """
         # 提取变量名
-        if isinstance(var_reference, dict):
-            var_name = var_reference.get("MemberName", "UnknownVariable")
-            is_self_context = var_reference.get("bSelfContext", True)
-        elif isinstance(var_reference, str) and "MemberName=" in var_reference:
-            import re
-            match = re.search(r'MemberName="([^"]+)"', var_reference)
-            var_name = match.group(1) if match else "UnknownVariable"
-            
-            # 检查 VariableReference 中的 bSelfContext
-            if "bSelfContext=True" in var_reference:
-                is_self_context = True
-            elif "bSelfContext=False" in var_reference:
-                is_self_context = False
-            else:
-                # 如果 VariableReference 中没有 bSelfContext，检查 SelfContextInfo
-                self_context_info = node.properties.get("SelfContextInfo", "")
-                is_self_context = self_context_info != "NotSelfContext"
-        else:
-            # 如果没有 VariableReference，检查 SelfContextInfo
-            self_context_info = node.properties.get("SelfContextInfo", "")
-            is_self_context = self_context_info != "NotSelfContext"
+        var_name = self._extract_variable_name_from_node(source_node)
+        if not var_name:
+            return None
         
-        return var_name, is_self_context
-
-    def _extract_function_reference(self, node: GraphNode) -> str:
+        # 检查符号表
+        symbol = context.symbol_table.lookup(var_name)
+        if symbol:
+            return self._create_expression_from_symbol(context, var_name)
+        
+        # 检查输出引脚符号
+        return self._check_output_pin_symbols(context, source_node, source_pin_id)
+    
+    def _extract_variable_name_from_node(self, node: GraphNode) -> str:
         """
-        从节点中提取函数引用信息
-        支持多种函数引用格式
+        从节点中提取变量名
         """
-        # 尝试从 FunctionReference 属性获取
-        func_ref = node.properties.get("FunctionReference", "")
-        if isinstance(func_ref, dict):
-            member_name = func_ref.get("MemberName", "")
-            if member_name:
-                return member_name
-        elif isinstance(func_ref, str) and "MemberName=" in func_ref:
-            import re
-            match = re.search(r'MemberName="([^"]+)"', func_ref)
-            if match:
-                return match.group(1)
-        
-        # 回退到其他可能的属性
-        return (node.properties.get("FunctionName", "") or 
-                node.properties.get("ArrayFunction", "") or 
-                "UnknownFunction")
-
-    def _parse_function_arguments(self, context: AnalysisContext, node: GraphNode, 
-                                  exclude_pins: set = None) -> List[Tuple[str, Expression]]:
+        if "K2Node_VariableGet" in node.class_type or "K2Node_VariableSet" in node.class_type:
+            var_name, _ = extract_variable_reference(node)
+            return var_name
+        return ""
+    
+    def _create_expression_from_symbol(self, context: AnalysisContext, var_name: str) -> Optional[Expression]:
         """
-        解析函数参数
-        排除执行引脚和指定的特殊引脚
-        
-        :param exclude_pins: 要排除的引脚名称集合，如果为None则使用默认排除列表
+        从符号创建表达式
         """
-        if exclude_pins is None:
-            exclude_pins = {"self"}  # 默认只排除self引脚
-        
-        arguments = []
-        
+        symbol = context.symbol_table.lookup(var_name)
+        if symbol:
+            return VariableGetExpression(
+                variable_name=var_name,
+                is_self_variable=not (symbol.is_loop_variable or symbol.is_callback_parameter)
+            )
+        return None
+    
+    def _check_output_pin_symbols(self, context: AnalysisContext, node: GraphNode, pin_id: str) -> Optional[Expression]:
+        """
+        检查输出引脚符号
+        """
+        # 查找对应的输出引脚
         for pin in node.pins:
-            if (pin.direction == "input" and 
-                pin.pin_type not in ["exec"] and
-                pin.pin_name not in exclude_pins):
-                arg_expr = self._resolve_data_expression(context, pin)
-                arguments.append((pin.pin_name, arg_expr))
-        
-        return arguments
-
-    def _create_function_call_node(self, context: AnalysisContext, node: GraphNode, 
-                                   function_name: str, target_expr: Expression, 
-                                   arguments: List[Tuple[str, Expression]]) -> ASTNode:
-        """
-        创建函数调用节点的公共逻辑
-        根据是否有执行引脚决定返回FunctionCallNode还是FunctionCallExpression
-        """
-        # 检查是否有执行引脚（决定是语句还是表达式）
-        has_exec_pins = any(pin.pin_type == "exec" for pin in node.pins)
-        
-        if has_exec_pins:
-            # 有执行引脚，生成FunctionCallNode
-            return FunctionCallNode(
-                target=target_expr,
-                function_name=function_name,
-                arguments=arguments,
-                source_location=create_source_location(node)
-            )
-        else:
-            # 纯函数调用，生成FunctionCallExpression
-            return FunctionCallExpression(
-                target=target_expr,
-                function_name=function_name,
-                arguments=arguments,
-                source_location=create_source_location(node)
-            )
+            if pin.pin_id == pin_id and pin.direction == "output":
+                symbol = context.symbol_table.lookup(pin.pin_name)
+                if symbol:
+                    return VariableGetExpression(
+                        variable_name=pin.pin_name,
+                        is_self_variable=not (symbol.is_loop_variable or symbol.is_callback_parameter)
+                    )
+        return None
 
 
     

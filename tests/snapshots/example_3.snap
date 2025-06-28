@@ -1,8 +1,8 @@
 #### Event: PreConstruct(IsDesignTime: bool)
 
-  WBP_SkillCategoryButtons.WBP_Equipped_Button.Button.OnClicked = "OnClicked_Event"
-  WBP_SkillCategoryButtons.WBP_All_Button.Button.OnClicked = "OnClicked_Event_0"
-  WBP_CloseButton.Button.OnClicked = "OnClicked_Event_1"
+  // Unsupported node: /Script/BlueprintGraph.K2Node_AssignDelegate (K2Node_AssignDelegate_0)
+  // Unsupported node: /Script/BlueprintGraph.K2Node_AssignDelegate (K2Node_AssignDelegate_1)
+  // Unsupported node: /Script/BlueprintGraph.K2Node_AssignDelegate (K2Node_AssignDelegate_2)
 
 #### Event: OnClicked_Event
 
@@ -20,5 +20,5 @@
 
   if (cast(WidgetController as AbilitiesMenuController)):
     declare AsAbilitiesMenuController: AbilitiesMenuController = cast(WidgetController as AbilitiesMenuController)
-    As Abilities Menu Controller = AsAbilitiesMenuController
+    As Abilities Menu Controller = stmt_result_7B04B3F1
   As Abilities Menu Controller.BindChildWidgets(InCoreAreaWidget: WBP_AbilitiesCoreArea, InEquippedPanelWidget: WBP_AbilitiesEquippedPanel)

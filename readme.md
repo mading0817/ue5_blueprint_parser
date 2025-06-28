@@ -26,10 +26,10 @@ The parser operates through distinct stages, primarily focusing on **EventGraph 
 
 ### 2. Stage Two: High-Fidelity AST Generation (Logic Parsing - Semantic Phase)
 
-- **Module**: `parser/analyzer.py`
+- **Module**: `parser/analyzer.py` (orchestrates the process) and `parser/processors.py` (contains specific handlers for each blueprint node type).
 - **Input**: The `BlueprintGraph` object from Stage One.
 - **Output**: A **structurally accurate Abstract Syntax Tree (AST)**.
-- **Responsibility**: This is the heart of the parser. It traverses the `BlueprintGraph` to produce an AST that is a direct logical equivalent of the blueprint's structure.
+- **Responsibility**: This is the heart of the parser. The `analyzer` traverses the `BlueprintGraph`, dispatching to the appropriate handlers in `processors.py` to produce an AST that is a direct logical equivalent of the blueprint's structure.
 
 #### Key Architectural Features:
 
@@ -63,4 +63,14 @@ The parser operates through distinct stages, primarily focusing on **EventGraph 
 ### 5. Common Utilities & Shared Components (`parser/common/`)
 
 - **Module**: `parser/common/` (new directory)
-- **Responsibility**: This new directory will house high-cohesion, stateless utility functions and shared components that are used across different parsing stages or domains (e.g., text parsing helpers, graph manipulation utilities). This promotes better code organization and reusability, moving away from a monolithic `utils.py`.
+- **Responsibility**: This directory houses high-cohesion, stateless utility functions and shared components used across different parsing stages or domains. Key sub-modules include `graph_utils.py` for common graph traversal and node/pin interaction logic, and `builder_utils.py` for AST node construction helpers. This promotes better code organization and reusability, moving away from a monolithic `utils.py`.
+
+## Current Refactoring & Optimization Focus
+
+Based on the latest analysis, the primary refactoring effort will center on maximizing code reduction and quality within the existing robust architecture. Key areas include:
+
+1.  **Consolidation of Auxiliary Functions**: Many stateless utility functions (e.g., pin finding, property extraction, argument parsing) are currently distributed across `analyzer.py` and `processors.py`. These will be systematically identified and moved into `parser/common/graph_utils.py` and potentially `parser/common/builder_utils.py` to centralize common graph and AST-building operations.
+2.  **Elimination of Redundancy**: Address minor code duplications, such as aliased pin name lookups (e.g., "then" vs. "True"), by creating unified helper functions in `parser/common/graph_utils.py`.
+3.  **Code Simplification**: While no significant "dead code" was found due to the dispatcher pattern, functions with complex internal logic (e.g., `_resolve_data_expression` in `analyzer.py`) will be reviewed for opportunities to decompose them into smaller, more manageable private methods within their respective classes, where applicable.
+
+This surgical approach aims to enhance code clarity, maintainability, and reusability without altering the established pipeline or core functionality.

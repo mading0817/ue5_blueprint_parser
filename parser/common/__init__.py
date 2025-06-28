@@ -1,39 +1,46 @@
 """
-Parser Common Utilities
-共享工具函数包，提供高内聚的无状态辅助函数
+通用工具模块
+包含图操作、装饰器、构建器等通用功能
 """
 
-# 导出图操作相关函数
+# 基础工具函数
 from .graph_utils import (
-    find_pin,
-    create_source_location,
-    get_pin_default_value,
-    extract_pin_type
+    find_pin, create_source_location, get_pin_default_value, extract_pin_type, parse_object_path,
+    # 引脚别名查找
+    find_pin_by_aliases, find_execution_output_pin, find_then_pin, find_else_pin,
+    # 节点属性提取
+    extract_variable_reference, extract_function_reference, extract_event_name, extract_event_parameters,
+    # 参数解析
+    parse_function_arguments, should_create_temp_variable_for_node, generate_temp_variable_name,
+    # 节点验证
+    has_execution_pins, get_output_pins, get_input_pins
 )
 
-# 导出装饰器相关功能
-from .decorators import (
-    register_processor,
-    node_processor_registry
-)
+# 装饰器系统
+from .decorators import register_processor, node_processor_registry
 
-# 导出通用解析器
+# 对象解析器
 from .object_parser import BlueprintObjectParser
 
-# 导出构建器工具
+# 构建器工具
 from .builder_utils import collect_all_raw_objects
 
+# 为了向后兼容，保留原有的导入方式
 __all__ = [
-    # 图操作工具
-    'find_pin',
-    'create_source_location', 
-    'get_pin_default_value',
-    'extract_pin_type',
-    # 装饰器工具
-    'register_processor',
-    'node_processor_registry',
-    # 通用解析器
+    # 基础工具函数
+    'find_pin', 'create_source_location', 'get_pin_default_value', 'extract_pin_type', 'parse_object_path',
+    # 引脚别名查找
+    'find_pin_by_aliases', 'find_execution_output_pin', 'find_then_pin', 'find_else_pin',
+    # 节点属性提取
+    'extract_variable_reference', 'extract_function_reference', 'extract_event_name', 'extract_event_parameters',
+    # 参数解析
+    'parse_function_arguments', 'should_create_temp_variable_for_node', 'generate_temp_variable_name',
+    # 节点验证
+    'has_execution_pins', 'get_output_pins', 'get_input_pins',
+    # 装饰器系统
+    'register_processor', 'node_processor_registry',
+    # 对象解析器
     'BlueprintObjectParser',
     # 构建器工具
-    'collect_all_raw_objects',
+    'collect_all_raw_objects'
 ] 

@@ -5,17 +5,17 @@
 
 #### Event: OnMenuOpenChanged_Event(bIsOpen: bool)
 
-  if ("OnMenuOpenChanged_Event"):
+  if (stmt_result_95B2E7F6):
     // 空分支
   else:
     As Attributes Menu Controller.HandleCloseButtonClicked()
 
 #### Event: Construct
 
-  CloseButton.Button.OnClicked = "CloseAttributesMenu"
-  ParentMenuAnchor.OnMenuOpenChanged = "OnMenuOpenChanged_Event"
-  WBP_ResetButton.Button.OnClicked = "OnClicked_Event"
-  WBP_SummitButton.Button.OnClicked = "OnClicked_Event_0"
+  // Unsupported node: /Script/BlueprintGraph.K2Node_AssignDelegate (K2Node_AssignDelegate_0)
+  // Unsupported node: /Script/BlueprintGraph.K2Node_AssignDelegate (K2Node_AssignDelegate_3)
+  // Unsupported node: /Script/BlueprintGraph.K2Node_AssignDelegate (K2Node_AssignDelegate_1)
+  // Unsupported node: /Script/BlueprintGraph.K2Node_AssignDelegate (K2Node_AssignDelegate_2)
 
 #### Event: OnClicked_Event
 
