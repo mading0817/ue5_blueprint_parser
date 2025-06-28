@@ -557,61 +557,50 @@ class GraphAnalyzer:
     
     def _try_resolve_from_symbol_table(self, context: AnalysisContext, source_node: GraphNode, source_pin_id: str) -> Optional[Expression]:
         """
-        尝试从符号表解析表达式
-        检查源节点是否对应符号表中的变量
+        尝试从符号表解析表达式 - 重构后的简化版本
         """
-        # 如果是变量获取节点，检查变量名是否在符号表中
+        # 检查变量获取节点
         if 'K2Node_VariableGet' in source_node.class_type:
-            var_reference = source_node.properties.get("VariableReference", "")
-            var_name = ""
-            
-            if isinstance(var_reference, dict):
-                var_name = var_reference.get("MemberName", "")
-            elif isinstance(var_reference, str) and "MemberName=" in var_reference:
-                import re
-                match = re.search(r'MemberName="([^"]+)"', var_reference)
-                var_name = match.group(1) if match else ""
-            
+            var_name = self._extract_variable_name_from_node(source_node)
             if var_name:
-                symbol = context.symbol_table.lookup(var_name)
-                if symbol:
-                    return VariableGetExpression(
-                        variable_name=symbol.name,
-                        is_self_variable=not (symbol.is_loop_variable or symbol.is_callback_parameter)
-                    )
+                return self._create_expression_from_symbol(context, var_name)
         
-        # 检查是否有输出引脚名称匹配符号表中的变量
-        for pin in source_node.pins:
-            if pin.direction == "output" and pin.pin_id == source_pin_id:
-                # 直接匹配引脚名称
+        # 检查输出引脚名称
+        return self._check_output_pin_symbols(context, source_node, source_pin_id)
+    
+    def _extract_variable_name_from_node(self, node: GraphNode) -> str:
+        """从节点中提取变量名"""
+        var_reference = node.properties.get("VariableReference", "")
+        
+        if isinstance(var_reference, dict):
+            return var_reference.get("MemberName", "")
+        elif isinstance(var_reference, str) and "MemberName=" in var_reference:
+            import re
+            match = re.search(r'MemberName="([^"]+)"', var_reference)
+            return match.group(1) if match else ""
+        
+        return ""
+    
+    def _create_expression_from_symbol(self, context: AnalysisContext, var_name: str) -> Optional[Expression]:
+        """从符号创建表达式"""
+        symbol = context.symbol_table.lookup(var_name)
+        if symbol:
+            return VariableGetExpression(
+                variable_name=symbol.name,
+                is_self_variable=not (symbol.is_loop_variable or symbol.is_callback_parameter)
+            )
+        return None
+    
+    def _check_output_pin_symbols(self, context: AnalysisContext, node: GraphNode, pin_id: str) -> Optional[Expression]:
+        """检查输出引脚是否匹配符号表中的变量"""
+        for pin in node.pins:
+            if pin.direction == "output" and pin.pin_id == pin_id:
                 symbol = context.symbol_table.lookup(pin.pin_name)
                 if symbol:
                     return VariableGetExpression(
                         variable_name=symbol.name,
                         is_self_variable=not (symbol.is_loop_variable or symbol.is_callback_parameter)
                     )
-                
-                # 特殊处理：如果是Payload_字段，尝试转换为"Payload FieldName"格式
-                if pin.pin_name.startswith("Payload_"):
-                    field_name = pin.pin_name[8:]  # 移除"Payload_"
-                    var_name = f"Payload {field_name.replace('_', ' ')}"
-                    symbol = context.symbol_table.lookup(var_name)
-                    if symbol:
-                        return VariableGetExpression(
-                            variable_name=symbol.name,
-                            is_self_variable=not (symbol.is_loop_variable or symbol.is_callback_parameter)
-                        )
-                
-                # 特殊处理：ForEach循环的Array Element
-                if pin.pin_name == "Array Element" and 'K2Node_MacroInstance' in source_node.class_type:
-                    # 检查是否在ForEach循环的作用域中
-                    symbol = context.symbol_table.lookup("ArrayElement")
-                    if symbol:
-                        return VariableGetExpression(
-                            variable_name=symbol.name,
-                            is_self_variable=False
-                        )
-        
         return None
     
     def _build_property_access_expression(self, context: AnalysisContext, node: GraphNode) -> Expression:

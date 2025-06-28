@@ -9,6 +9,22 @@ if TYPE_CHECKING:
     from .symbol_table import Scope
 
 
+# ============================================================================
+# 通用解析中间结构 (Common Parsing Intermediate Structure)
+# ============================================================================
+
+@dataclass
+class RawObject:
+    """
+    通用蓝图对象的中间表示
+    用于在原始文本解析和领域模型构建之间提供统一的数据结构
+    """
+    name: str                                           # 对象名称
+    class_type: str                                     # 对象类型
+    properties: Dict[str, str] = field(default_factory=dict)  # 属性键值对
+    children: List['RawObject'] = field(default_factory=list)  # 子对象列表
+
+
 @dataclass
 class BlueprintNode:
     """

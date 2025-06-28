@@ -17,6 +17,9 @@ from .decorators import (
     node_processor_registry
 )
 
+# 导出通用解析器
+from .object_parser import BlueprintObjectParser
+
 __all__ = [
     # 图操作工具
     'find_pin',
@@ -26,4 +29,6 @@ __all__ = [
     # 装饰器工具
     'register_processor',
     'node_processor_registry',
+    # 通用解析器
+    'BlueprintObjectParser',
 ] 

@@ -3,14 +3,6 @@
   As Attributes Menu Controller.HandleCloseButtonClicked()
   ParentMenuAnchor.Close()
 
-#### Event: OnClicked_Event
-
-  As Attributes Menu Controller.HandleResetButtonClicked()
-
-#### Event: OnClicked_Event_0
-
-  As Attributes Menu Controller.HandleSubmitButtonClicked()
-
 #### Event: OnMenuOpenChanged_Event(bIsOpen: bool)
 
   if ("OnMenuOpenChanged_Event"):
@@ -24,3 +16,11 @@
   ParentMenuAnchor.OnMenuOpenChanged = "OnMenuOpenChanged_Event"
   WBP_ResetButton.Button.OnClicked = "OnClicked_Event"
   WBP_SummitButton.Button.OnClicked = "OnClicked_Event_0"
+
+#### Event: OnClicked_Event
+
+  As Attributes Menu Controller.HandleResetButtonClicked()
+
+#### Event: OnClicked_Event_0
+
+  As Attributes Menu Controller.HandleSubmitButtonClicked()

@@ -11,11 +11,11 @@
   for each (ArrayElement, ArrayIndex) in LeftArea.GetAllChildren():
     if (cast(ArrayElement as PlayerUserWidget)):
       declare AsPlayerUserWidget: PlayerUserWidget = cast(ArrayElement as PlayerUserWidget)
-      SecondaryRows.Array_AddUnique(self: "/Script/Engine.Default__KismetArrayLibrary", NewItem: AsPlayerUserWidget)
+      SecondaryRows.Array_AddUnique(self: None, NewItem: AsPlayerUserWidget)
   for each (ArrayElement, ArrayIndex) in RightArea.GetAllChildren():
     if (cast(ArrayElement as PlayerUserWidget)):
       declare AsPlayerUserWidget: PlayerUserWidget = cast(ArrayElement as PlayerUserWidget)
-      SecondaryRows.Array_AddUnique(self: "/Script/Engine.Default__KismetArrayLibrary", NewItem: AsPlayerUserWidget)
+      SecondaryRows.Array_AddUnique(self: None, NewItem: AsPlayerUserWidget)
   for each (ArrayElement, ArrayIndex) in SecondaryRows:
     As Attributes Menu Controller.GetSecondaryRowController(Index: ArrayIndex)
     ArrayElement.SetWidgetController(InWidgetController: As Attributes Menu Controller.GetSecondaryRowController(Index: ArrayIndex))

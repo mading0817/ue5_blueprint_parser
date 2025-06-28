@@ -84,6 +84,7 @@ Strict rules:
 	- Do not edit anything which is not relevant to the current plans.
 	- Check if all the PLAN and INNOVATE has been done.
 	- Use "!WARNING!" to warn user any [unclear, unexecutable, misunderstanding] code.
+	- Clean up any [unused, incorrect, or redundant] [code or comments] you have generated.
 
 
 [MODE: DEBUG]
@@ -95,9 +96,9 @@ Strict rules:
 	- Choose appropriate tools for reading and searching the [error, bugs, unexpected results] causes.
 	- Clearly explain the [error, bugs, unexpected results].
 	- Fix everything.
+	- Clean up any [unused, incorrect, or redundant] [code or comments] you have generated.
 
 
 [MODE: FREE]
 - Analyzing task/instructions from current conversation.
-
 - For any user instruction unrelated to the modes above, activate this mode and carry out the task as instructed.
