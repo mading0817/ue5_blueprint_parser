@@ -699,7 +699,7 @@ class WidgetTreeFormatter(Formatter):
                 # 格式化属性值
                 if len(str(prop_value)) > 50:
                     prop_value = str(prop_value)[:47] + "..."
-                self._add_line(f"- {prop_name}: `{prop_value}`", extra_indent=1)
+                self._add_line(f"- {prop_name}: `{prop_value}`", extra_indent=2)
     
     def _add_line(self, content: str, extra_indent: int = 0):
         """添加一行内容到输出"""

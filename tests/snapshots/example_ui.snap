@@ -1,92 +1,66 @@
 # WBP_AttributesMenu Hierarchy
 
 - **SizeBox_Root** (SizeBox)
-- **SizeBoxSlot_0**
-- **Border_0** (Border)
-- **BorderSlot_0**
-- **Overlay_Box** (Overlay)
-- **OverlaySlot_1**
-- **OverlaySlot_4**
-- **OverlaySlot_0**
-- **Image_Background** (Image)
-- **MainMenuBox** (VerticalBox)
-- **VerticalBoxSlot_3**
-  - Size: `(SizeRule=Fill)`
-- **VerticalBoxSlot_4**
-  - Size: `(SizeRule=Fill)`
-- **VerticalBoxSlot_2**
-  - Size: `(SizeRule=Fill)`
-- **TextBlock_128** (TextBlock)
-  - Text: `NSLOCTEXT("[176EAA45DB63CAB57B675F8B22A99752]",...`
-- **AttributesBorder** (Border)
-- **AttributeAreas** (HorizontalBox)
-- **HorizontalBoxSlot_2**
-- **HorizontalBoxSlot_0**
-- **HorizontalBoxSlot_1**
-- **PrimaryMain** (VerticalBox)
-- **VerticalBoxSlot_0**
-  - Size: `(SizeRule=Fill)`
-- **VerticalBoxSlot_1**
-  - Size: `(SizeRule=Fill)`
-- **PrimaryTitle** (TextBlock)
-  - Text: `NSLOCTEXT("[176EAA45DB63CAB57B675F8B22A99752]",...`
-- **PrimaryRows** (VerticalBox)
-- **VerticalBoxSlot_5**
-  - Size: `(SizeRule=Fill)`
-- **WBP_Primary_1** (WBP_AttributeValueRowButton_C)
-- **WBP_Primary_2** (WBP_AttributeValueRowButton_C)
-- **WBP_Primary_3** (WBP_AttributeValueRowButton_C)
-- **WBP_Primary_4** (WBP_AttributeValueRowButton_C)
-- **WBP_Primary_5** (WBP_AttributeValueRowButton_C)
-- **Border_2** (Border)
-- **Spacer_162** (Spacer)
-  - Size: `(X=5.000000,Y=1.000000)`
-- **SecondaryMain** (VerticalBox)
-- **SecondaryTitle** (TextBlock)
-  - Text: `NSLOCTEXT("[176EAA45DB63CAB57B675F8B22A99752]",...`
-- **SecondaryRows** (HorizontalBox)
-- **LeftArea** (VerticalBox)
-- **VerticalBoxSlot_6**
-  - Size: `(SizeRule=Fill)`
-- **VerticalBoxSlot_7**
-  - Size: `(SizeRule=Fill)`
-- **WBP_Secondary_1** (WBP_AttributeValueRow_C)
-- **WBP_Secondary_2** (WBP_AttributeValueRow_C)
-- **WBP_Secondary_3** (WBP_AttributeValueRow_C)
-- **WBP_Secondary_4** (WBP_AttributeValueRow_C)
-- **WBP_Secondary_5** (WBP_AttributeValueRow_C)
-- **WBP_Secondary_6** (WBP_AttributeValueRow_C)
-- **WBP_Secondary_7** (WBP_AttributeValueRow_C)
-- **WBP_Secondary_8** (WBP_AttributeValueRow_C)
-- **RightArea** (VerticalBox)
-- **WBP_Secondary_9** (WBP_AttributeValueRow_C)
-- **WBP_Secondary_10** (WBP_AttributeValueRow_C)
-- **WBP_Secondary_11** (WBP_AttributeValueRow_C)
-- **WBP_Secondary_12** (WBP_AttributeValueRow_C)
-- **WBP_Secondary_13** (WBP_AttributeValueRow_C)
-- **WBP_Secondary_14** (WBP_AttributeValueRow_C)
-- **WBP_Secondary_15** (WBP_AttributeValueRow_C)
-- **WBP_Secondary_16** (WBP_AttributeValueRow_C)
-- **AvailablePoint** (HorizontalBox)
-- **HorizontalBoxSlot_3**
-- **HorizontalBoxSlot_5**
-- **AvailablePointsText** (TextBlock)
-  - Text: `NSLOCTEXT("[176EAA45DB63CAB57B675F8B22A99752]",...`
-- **AvailablePointsValue** (TextBlock)
-  - Text: `NSLOCTEXT("[176EAA45DB63CAB57B675F8B22A99752]",...`
-- **Buttons** (HorizontalBox)
-- **WBP_ResetButton** (WBP_AddButton_C)
-  - SizeBoxWidth: `50.000000`
-  - SizeBoxHeight: `50.000000`
-  - ButtonText: `NSLOCTEXT("[176EAA45DB63CAB57B675F8B22A99752]",...`
-  - TextBorderPadding: `(Top=3.500000)`
-- **Spacer_227** (Spacer)
-  - Size: `(X=10.000000,Y=1.000000)`
-- **WBP_SummitButton** (WBP_AddButton_C)
-  - SizeBoxWidth: `50.000000`
-  - SizeBoxHeight: `50.000000`
-  - ButtonText: `NSLOCTEXT("[176EAA45DB63CAB57B675F8B22A99752]",...`
-  - TextBorderPadding: `(Left=0.000000,Top=6.000000,Bottom=0.000000)`
-- **Spacer** (Spacer)
-  - Size: `(X=10.000000,Y=1.000000)`
-- **CloseButton** (WBP_CloseButton_C)
+  - **Border_0** (Border)
+    - **Overlay_Box** (Overlay)
+      - **Image_Background** (Image)
+      - **MainMenuBox** (VerticalBox)
+        - **AttributesBorder** (Border)
+          - **AttributeAreas** (HorizontalBox)
+            - **Border_2** (Border)
+              - **Spacer_162** (Spacer)
+                  - Size: `(X=5.000000,Y=1.000000)`
+            - **PrimaryMain** (VerticalBox)
+              - **PrimaryTitle** (TextBlock)
+                  - Text: `NSLOCTEXT("[176EAA45DB63CAB57B675F8B22A99752]",...`
+              - **PrimaryRows** (VerticalBox)
+                - **WBP_Primary_1** (WBP_AttributeValueRowButton_C)
+                - **WBP_Primary_2** (WBP_AttributeValueRowButton_C)
+                - **WBP_Primary_3** (WBP_AttributeValueRowButton_C)
+                - **WBP_Primary_4** (WBP_AttributeValueRowButton_C)
+                - **WBP_Primary_5** (WBP_AttributeValueRowButton_C)
+            - **SecondaryMain** (VerticalBox)
+              - **SecondaryRows** (HorizontalBox)
+                - **LeftArea** (VerticalBox)
+                  - **WBP_Secondary_1** (WBP_AttributeValueRow_C)
+                  - **WBP_Secondary_2** (WBP_AttributeValueRow_C)
+                  - **WBP_Secondary_3** (WBP_AttributeValueRow_C)
+                  - **WBP_Secondary_4** (WBP_AttributeValueRow_C)
+                  - **WBP_Secondary_5** (WBP_AttributeValueRow_C)
+                  - **WBP_Secondary_6** (WBP_AttributeValueRow_C)
+                  - **WBP_Secondary_7** (WBP_AttributeValueRow_C)
+                  - **WBP_Secondary_8** (WBP_AttributeValueRow_C)
+                - **RightArea** (VerticalBox)
+                  - **WBP_Secondary_9** (WBP_AttributeValueRow_C)
+                  - **WBP_Secondary_10** (WBP_AttributeValueRow_C)
+                  - **WBP_Secondary_11** (WBP_AttributeValueRow_C)
+                  - **WBP_Secondary_12** (WBP_AttributeValueRow_C)
+                  - **WBP_Secondary_13** (WBP_AttributeValueRow_C)
+                  - **WBP_Secondary_14** (WBP_AttributeValueRow_C)
+                  - **WBP_Secondary_15** (WBP_AttributeValueRow_C)
+                  - **WBP_Secondary_16** (WBP_AttributeValueRow_C)
+              - **SecondaryTitle** (TextBlock)
+                  - Text: `NSLOCTEXT("[176EAA45DB63CAB57B675F8B22A99752]",...`
+        - **AvailablePoint** (HorizontalBox)
+          - **AvailablePointsText** (TextBlock)
+              - Text: `NSLOCTEXT("[176EAA45DB63CAB57B675F8B22A99752]",...`
+          - **AvailablePointsValue** (TextBlock)
+              - Text: `NSLOCTEXT("[176EAA45DB63CAB57B675F8B22A99752]",...`
+          - **Buttons** (HorizontalBox)
+            - **WBP_ResetButton** (WBP_AddButton_C)
+                - SizeBoxWidth: `50.000000`
+                - SizeBoxHeight: `50.000000`
+                - ButtonText: `NSLOCTEXT("[176EAA45DB63CAB57B675F8B22A99752]",...`
+                - TextBorderPadding: `(Top=3.500000)`
+            - **Spacer_227** (Spacer)
+                - Size: `(X=10.000000,Y=1.000000)`
+            - **WBP_SummitButton** (WBP_AddButton_C)
+                - SizeBoxWidth: `50.000000`
+                - SizeBoxHeight: `50.000000`
+                - ButtonText: `NSLOCTEXT("[176EAA45DB63CAB57B675F8B22A99752]",...`
+                - TextBorderPadding: `(Left=0.000000,Top=6.000000,Bottom=0.000000)`
+          - **Spacer** (Spacer)
+              - Size: `(X=10.000000,Y=1.000000)`
+        - **TextBlock_128** (TextBlock)
+            - Text: `NSLOCTEXT("[176EAA45DB63CAB57B675F8B22A99752]",...`
+      - **CloseButton** (WBP_CloseButton_C)

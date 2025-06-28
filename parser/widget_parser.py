@@ -49,8 +49,11 @@ def parse(blueprint_text: str) -> List[WidgetNode]:
     if not blueprint_text or not blueprint_text.strip():
         return []
 
-    # 正则表达式准备
-    begin_obj_re = re.compile(r"Begin Object(?: Class=(?P<class>[\w./_]+))? Name=\"(?P<name>[\w_]+)\"")
+    # 正则表达式准备 - 修改以支持两种Begin Object格式
+    # 第一种：Begin Object Class=... Name="..." （创建对象）
+    # 第二种：Begin Object Name="..." （设置对象属性）
+    begin_obj_with_class_re = re.compile(r"Begin Object Class=(?P<class>[\w./_]+) Name=\"(?P<name>[\w_]+)\"")
+    begin_obj_name_only_re = re.compile(r"Begin Object Name=\"(?P<name>[\w_]+)\"")
     prop_re = re.compile(r"([\w_()]+)=(.*)")
 
     # 遍历文本并构建原始对象集合
@@ -61,17 +64,33 @@ def parse(blueprint_text: str) -> List[WidgetNode]:
     for raw_line in blueprint_text.strip().splitlines():
         line = raw_line.strip()
 
-        # 开始对象块
-        begin_match = begin_obj_re.search(line)
-        if begin_match:
-            obj_name = begin_match.group("name")
-            obj_class = begin_match.group("class")
+        # 检查是否是Begin Object行
+        class_match = begin_obj_with_class_re.search(line)
+        name_match = begin_obj_name_only_re.search(line)
+        
+        if class_match:
+            # 第一种格式：创建新对象
+            obj_name = class_match.group("name")
+            obj_class = class_match.group("class")
             obj = _RawObject(obj_name, obj_class)
             objects_by_name[obj_name] = obj
             object_stack.append(obj)
             # 记录Slot对象以便稍后建立层级关系
             if obj_class and "Slot" in obj_class:
                 slot_objects.append(obj)
+            continue
+        elif name_match:
+            # 第二种格式：重新引用已存在的对象来设置属性
+            obj_name = name_match.group("name")
+            if obj_name in objects_by_name:
+                # 获取已存在的对象并推入栈中，以便收集属性
+                existing_obj = objects_by_name[obj_name]
+                object_stack.append(existing_obj)
+            else:
+                # 如果对象不存在，创建一个新的空对象（这种情况不应该发生，但为了健壮性）
+                obj = _RawObject(obj_name, "")
+                objects_by_name[obj_name] = obj
+                object_stack.append(obj)
             continue
 
         # 结束对象块
