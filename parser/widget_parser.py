@@ -14,6 +14,7 @@ from typing import Dict, List, Set
 from .models import WidgetNode, SourceLocation, RawObject
 from .common.graph_utils import parse_object_path
 from .common.object_parser import BlueprintObjectParser
+from .common.builder_utils import collect_all_raw_objects
 
 
 # ================================================================
@@ -37,7 +38,7 @@ class WidgetBuilder:
         :return: WidgetNode 根节点列表
         """
         # 收集所有对象（包括嵌套的）
-        all_objects = self._collect_all_objects(raw_objects)
+        all_objects = collect_all_raw_objects(raw_objects)
         
         # 分类对象：Widget 对象和 Slot 对象
         widget_objects = []
@@ -58,18 +59,7 @@ class WidgetBuilder:
         # 识别并返回根节点
         return self._find_root_nodes(widget_nodes)
     
-    def _collect_all_objects(self, raw_objects: List[RawObject]) -> List[RawObject]:
-        """递归收集所有对象（包括嵌套的子对象）"""
-        all_objects = []
-        
-        def collect_recursive(objects):
-            for obj in objects:
-                all_objects.append(obj)
-                if obj.children:
-                    collect_recursive(obj.children)
-        
-        collect_recursive(raw_objects)
-        return all_objects
+
     
     def _build_widget_nodes(self, widget_objects: List[RawObject]) -> Dict[str, WidgetNode]:
         """从 Widget 对象构建 WidgetNode 实例"""
