@@ -35,8 +35,8 @@ The parser operates through distinct stages, primarily focusing on **EventGraph 
 
 3.  **Three-Tier Processing Strategy for Robustness and Extensibility**:
     *   The parser employs a **three-tier processing strategy** for blueprint nodes, ensuring comprehensive and robust AST generation:
-        *   **Specialized Processors**: For nodes with unique execution flow logic or scope management (e.g., `ForEachLoop`, `Branch`).
-        *   **Generic Callable Processor**: A single, intelligent processor handles the vast majority of "function-call-like" nodes (e.g., `K2Node_SpawnActorFromClass`, `K2Node_LatentAbilityCall`).
+        *   **Specialized Processors**: For nodes with unique execution flow, scope management, or domain-specific context. A key pattern here is the lightweight **"Inject-and-Delegate"** processor (e.g., for `K2Node_LatentAbilityCall`), which handles specific pre-processing (like injecting an implicit parameter) before delegating to the generic processor for the actual function call logic.
+        *   **Generic Callable Processor**: A single, intelligent, and fortified processor handles the vast majority of "function-call-like" nodes (e.g., `K2Node_CallFunction`, `K2Node_SpawnActorFromClass`, and interface calls like `K2Node_Message`). Its logic is hardened to **prioritize the `FunctionReference` property** as the single source of truth for the function's name, ensuring high-fidelity parsing.
         *   **Fallback Processor**: For any truly unknown or unhandled node type, a `FallbackNode` is generated. This ensures the parsing process never halts, **eliminating all "Unsupported node" errors**.
 
 4.  **Lexical Scope Manager for Precise Data Flow (`parser/scope_manager.py`)**:
@@ -61,7 +61,8 @@ The primary refactoring effort centered on establishing a **Strict Contract** be
 1.  **Elimination of `UnknownExpression`**: Achieved by introducing the `ScopeManager` to precisely track variable visibility across lexical scopes.
 2.  **Elimination of `Unsupported node`**: Achieved by implementing the **three-tier processing model** (Specialized, Generic Callable, Fallback Processors) that guarantees every node type is processed into a meaningful AST representation.
 3.  **High-Fidelity Delegate Assignment**: The `AssignDelegate` processor and `AssignmentNode` now correctly use `+=` operator semantics, accurately reflecting the blueprint's event binding behavior.
-4.  **Specialized Data-Flow Handlers**: The analyzer now includes dedicated logic for correctly resolving common data-flow nodes (like `K2Node_Knot`, `K2Node_Self`, `K2Node_GetArrayItem`) into proper expressions.
+4.  **High-Fidelity Function-Like Node Parsing**: Achieved by unifying logic under a fortified generic processor and removing incorrect special cases, ensuring that nodes like `K2Node_Message` are parsed with full fidelity.
+5.  **Specialized Data-Flow Handlers**: The analyzer now includes dedicated logic for correctly resolving common data-flow nodes (like `K2Node_Knot`, `K2Node_Self`, `K2Node_GetArrayItem`) into proper expressions.
 
 **Recent Major Improvements (Completed):**
 - **`K2Node_DynamicCast` Full Support**: `DynamicCast` nodes are correctly parsed as `CastExpression` objects.

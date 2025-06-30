@@ -615,4 +615,66 @@ def process_assign_delegate(analyzer, context, node) -> Optional[AssignmentNode]
         is_local_variable=False,  # 委托分配通常不是局部变量
         operator="+=",  # 委托绑定使用 += 操作符
         source_location=create_source_location(node)
-    ) 
+    )
+
+
+# ============================================================================
+# 特殊能力调用处理器 - Inject-and-Delegate 模式实现
+# ============================================================================
+
+@register_processor(
+    "K2Node_LatentAbilityCall",
+    "/Script/GameplayAbilitiesEditor.K2Node_LatentAbilityCall"
+)
+def process_latent_ability_call(analyzer, context, node) -> Optional[ASTNode]:
+    """
+    处理潜在能力调用节点 - 使用 Inject-and-Delegate 模式
+    
+    Inject: 为缺失的 OwningAbility 参数注入正确的上下文值 (self)
+    Delegate: 将逻辑委托给强化的通用处理器
+    """
+    # Phase 1: 参数注入 (Inject)
+    # 检查是否存在 OwningAbility 引脚，如果没有连接则注入 self 上下文
+    owning_ability_pin = find_pin(node, "OwningAbility", "input")
+    
+    if owning_ability_pin and not owning_ability_pin.linked_to:
+        # 注入 self 上下文到 OwningAbility 参数
+        # 创建 self 表达式并将其映射到该引脚
+        self_expr = VariableGetExpression(
+            variable_name="self",
+            is_self_variable=True,
+            source_location=create_source_location(node)
+        )
+        # 将注入的表达式添加到 pin_ast_map 中
+        context.pin_ast_map[owning_ability_pin.pin_id] = self_expr
+    
+    # Phase 2: 逻辑委托 (Delegate)
+    # K2Node_LatentAbilityCall 使用 ProxyFactoryFunctionName 而不是 FunctionReference
+    func_name = node.properties.get("ProxyFactoryFunctionName", "LatentAbilityCall")
+    
+    # 解析目标对象
+    target_expr = None
+    self_pin = find_pin(node, "self", "input")
+    if self_pin and self_pin.linked_to:
+        target_expr = analyzer._resolve_data_expression(context, self_pin)
+    
+    # 解析参数（现在 OwningAbility 将正确解析为 self）
+    # 排除隐藏的引脚（如 OwningAbility）
+    exclude_pins = {"self", "OwningAbility"}
+    arguments = analyzer._parse_function_arguments(context, node, exclude_pins)
+    
+    # 创建函数调用节点
+    if has_execution_pins(node):
+        return FunctionCallNode(
+            target=target_expr,
+            function_name=func_name,
+            arguments=arguments,
+            source_location=create_source_location(node)
+        )
+    else:
+        return FunctionCallExpression(
+            target=target_expr,
+            function_name=func_name,
+            arguments=arguments,
+            source_location=create_source_location(node)
+        ) 

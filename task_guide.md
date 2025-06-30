@@ -44,9 +44,10 @@
         *   当解析`Delegate`输入引脚时，期望其连接的事件节点（如`K2Node_CustomEvent`）解析为`EventReferenceExpression`。
         *   生成的`AssignmentNode`的`operator`字段应设置为`"+\="`。
     3.  **修复`process_dynamic_cast`中的变量命名与符号注册**：此处理器现在仅负责处理`DynamicCast`的执行流。它将确保从节点的`As...`输出引脚获取正确的变量名（包含空格），并将其注册到符号表中。
-    4.  **新增通用可调用节点处理器(`process_generic_callable_node`)**：该处理器将负责解析 `K2Node_SpawnActorFromClass`, `K2Node_LatentAbilityCall`, `K2Node_AddDelegate` 等通用函数/方法调用类节点，并返回 `GenericCallNode`。
-    5.  **新增备用处理器(`process_fallback_node`)**：该处理器将负责捕获所有未识别节点的关键信息，并返回 `FallbackNode`。
-    6.  **改造现有特殊处理器以使用`ScopeManager`**: 例如 `process_foreach_loop`，在处理开始时调用 `context.scope_manager.enter_scope()`，并将循环变量（如`Array Element`, `Array Index`）注册到 `ScopeManager`。在逻辑处理结束时，**需要通过返回一个特殊的处理结果（例如包含执行流延续引脚和作用域清理指令的`NodeProcessingResult`）来通知分析器调用`context.scope_manager.leave_scope()`。**
+    4.  **强化通用可调用节点处理器**: 该处理器将负责解析绝大多数函数式调用节点 (如 `K2Node_CallFunction`, `K2Node_Message`, `K2Node_SpawnActorFromClass` 等)。其核心逻辑被强化，强制要求优先从节点的 `FunctionReference` 属性中提取函数名，确保解析的准确性。
+    5.  **新增`K2Node_LatentAbilityCall`的轻量级专用处理器**: 为处理`GameplayAbility`框架下的特殊节点，创建一个专用的、轻量级的处理器。该处理器仅负责注入隐式的`OwningAbility`参数，然后将节点的其余部分委托给强化的通用可调用处理器进行处理。
+    6.  **新增备用处理器(`process_fallback_node`)**：该处理器将负责捕获所有未识别节点的关键信息，并返回 `FallbackNode`。
+    7.  **改造现有特殊处理器以使用`ScopeManager`**: 例如 `process_foreach_loop`，在处理开始时调用 `context.scope_manager.enter_scope()`，并将循环变量（如`Array Element`, `Array Index`）注册到 `ScopeManager`。在逻辑处理结束时，**需要通过返回一个特殊的处理结果（例如包含执行流延续引脚和作用域清理指令的`NodeProcessingResult`）来通知分析器调用`context.scope_manager.leave_scope()`。**
 -   **状态**: 已完成。
 
 ### 4. 分析器核心重构 (`parser/analyzer.py`)
@@ -54,13 +55,14 @@
 -   **背景/目的**: 彻底废除`stmt_result_`生成逻辑，确保执行流的完整遍历，并深度集成`ScopeManager`以解决`UnknownExpression`。这是本次重构最核心的部分。
 -   **任务**: 
     1.  **废除临时变量生成与处理`DynamicCast`表达式**: 在`_resolve_node_expression_direct`中，完全移除处理`isinstance(result, Statement)`的分支，从而杜绝`stmt_result_...`的产生。同时，在此方法中新增`K2Node_DynamicCast`的专门数据流处理逻辑（`_build_cast_expression`），使其能够直接返回`CastExpression`，而非依赖通用处理器。如果处理器返回`Statement`而期望`Expression`，则应明确表示错误或返回`UnsupportedExpression`（此处的`UnsupportedExpression`最终将被`FallbackNode`策略取代）。
-    2.  **重构主分析流程(`analyze`方法)**: 
+    2.  **移除`K2Node_Message`的特例处理**: 在`_try_build_data_flow_expression`中，彻底删除针对`K2Node_Message`的`elif`分支，使其能被正确的通用处理器接管，解决函数名解析错误的问题。
+    3.  **重构主分析流程(`analyze`方法)**: 
         *   在`analyze`方法开始时，首先识别所有事件入口节点（`K2Node_Event`、`K2Node_CustomEvent`等）。
         *   对每个识别出的事件入口节点，独立调用`_process_node`，确保其完整执行流被解析并添加到AST中。这解决了之前事件逻辑丢失的问题。
         *   **在`analyze`方法初始化`AnalysisContext`时，实例化并初始化`ScopeManager`。**
-    3.  **深度集成`ScopeManager`到数据流解析**: 修改`_resolve_data_expression`方法，使其在解析任何引脚数据时，**首先尝试通过`context.scope_manager.lookup_variable(pin.pin_id)`来查找对应的表达式。**如果找到，则直接返回。这确保了局部变量和循环变量的正确解析。
-    4.  **更新节点分发逻辑(`_process_node`)**: 移除`UnsupportedNode`的创建逻辑。如果 `node_processor_registry` 中没有找到特定处理器的节点，则统一调用 `process_fallback_node` 来处理。
-    5.  **在执行流中处理作用域生命周期**: 修改 `_follow_execution_flow` 或 `_process_node`，使其能够识别特殊处理器返回的包含作用域管理指令的结果，并据此调用 `context.scope_manager.leave_scope()`。
+    4.  **深度集成`ScopeManager`到数据流解析**: 修改`_resolve_data_expression`方法，使其在解析任何引脚数据时，**首先尝试通过`context.scope_manager.lookup_variable(pin.pin_id)`来查找对应的表达式。**如果找到，则直接返回。这确保了局部变量和循环变量的正确解析。
+    5.  **更新节点分发逻辑(`_process_node`)**: 移除`UnsupportedNode`的创建逻辑。如果 `node_processor_registry` 中没有找到特定处理器的节点，则统一调用 `process_fallback_node` 来处理。
+    6.  **在执行流中处理作用域生命周期**: 修改 `_follow_execution_flow` 或 `_process_node`，使其能够识别特殊处理器返回的包含作用域管理指令的结果，并据此调用 `context.scope_manager.leave_scope()`。
 -   **状态**: 已完成。
 
 ### 5. 新增模块：作用域管理器 (`parser/scope_manager.py`)
@@ -90,7 +92,8 @@
 -   **添加新节点处理器**: 
     *   首先评估节点类型：
         *   如果节点具有独特的控制流、作用域管理需求或复杂内部逻辑（如`ForEachLoop`, `Branch`），则创建**专用处理器（Specialized Processor）**。在处理器内部，务必正确调用 `context.scope_manager.enter_scope()` 和 `leave_scope()`，并使用 `context.scope_manager.register_variable()` 注册其数据输出引脚。
-        *   如果节点本质上是"对某个目标调用一个函数并传递参数"，则无需创建新处理器，只需将其类名添加到 **通用可调用处理器（Generic Callable Processor）** 的识别列表中。
+        *   如果节点本质上是"对某个目标调用一个函数并传递参数"，则无需创建新处理器。系统强化的**通用可调用处理器（Generic Callable Processor）** 会自动处理所有包含 `FunctionReference` 属性的节点。
+        *   **最佳实践**: 如果节点行为与通用调用绝大部分一致，仅有少量领域特定的上下文需要处理（如`K2Node_LatentAbilityCall`需要注入隐式`OwningAbility`），则应采用**"注入并委托（Inject-and-Delegate）"**模式：创建一个轻量级专用处理器，仅负责注入特殊参数，然后将节点委托给通用处理器完成后续解析。
         *   对于极少数无法归类的节点，无需额外处理，它将自动由 **备用处理器（Fallback Processor）** 捕获。
     *   需明确处理器在两种上下文（执行流或数据流）中应返回的AST类型（`Statement`或`Expression`）。
     *   如果节点既可以作为执行流的起点，又可以作为数据源（如事件节点），则在`analyzer`中调用其处理器时需根据上下文正确引导。

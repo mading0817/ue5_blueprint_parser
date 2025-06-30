@@ -2,16 +2,16 @@
 
   K2_CommitAbility()
   if (IsOwningActorPlayerControlled()):
-    LatentAbilityCall(OwningAbility: None)
+    "CreateTargetDataUnderMouse"()
   else:
     if (cast(AvatarActor as BaseCharacter)):
       declare As BaseCharacter: BaseCharacter = cast(AvatarActor as BaseCharacter)
       cast(AvatarActor as BaseCharacter).AddDelegate(Delegate: OnMotionWarping)
-      AvatarActor.Message(Ability: self)
-      LatentAbilityCall(OwningAbility: None, TaskInstanceName: "None", MontageToPlay: UnknownMessage(Ability: self), Rate: "1.000000", StartSection: "None", bStopWhenAbilityEnds: "true", AnimRootMotionTranslationScale: "1.000000", StartTimeSeconds: "0.000000", bAllowInterruptAfterBlendOut: "false")
+      AvatarActor.FindTaggedMontageByAbility(Ability: self)
+      "CreatePlayMontageAndWaitProxy"(TaskInstanceName: "None", MontageToPlay: "UnsupportedExpression(/Script/BlueprintGraph.K2Node_Message)", Rate: "1.000000", StartSection: "None", bStopWhenAbilityEnds: "true", AnimRootMotionTranslationScale: "1.000000", StartTimeSeconds: "0.000000", bAllowInterruptAfterBlendOut: "false")
       if (AvatarActor.HasAuthority()):
-        for each (ArrayElement, ArrayIndex) in UnknownMessage(Ability: self):
-          LatentAbilityCall(OwningAbility: None, EventTag: ArrayElement, OptionalExternalTarget: "None", OnlyTriggerOnce: "true", OnlyMatchExact: "true")
+        for each (ArrayElement, ArrayIndex) in "UnsupportedExpression(/Script/BlueprintGraph.K2Node_Message)":
+          "WaitGameplayEvent"(EventTag: ArrayElement, OptionalExternalTarget: "None", OnlyTriggerOnce: "true", OnlyMatchExact: "true")
 
 #### Event: Spawn
 

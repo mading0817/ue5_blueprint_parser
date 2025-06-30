@@ -361,36 +361,22 @@ class GraphAnalyzer:
                 source_location=create_source_location(node)
             )
         
-        # K2Node_Message: 消息调用
-        elif node.class_type in ["K2Node_Message", "/Script/BlueprintGraph.K2Node_Message"]:
-            # 从节点属性中提取消息名称
-            message_name = node.properties.get("MessageName", "UnknownMessage")
-            
-            # 解析参数
-            arguments = self._parse_function_arguments(context, node, exclude_pins={"self"})
-            
-            return FunctionCallExpression(
-                target=None,
-                function_name=str(message_name),
-                arguments=arguments,
-                source_location=create_source_location(node)
-            )
-        
         return None
 
     def _extract_generic_function_name(self, node: GraphNode) -> str:
         """
         从通用可调用节点中提取函数名
+        强化版本：优先使用 FunctionReference 作为单一真实来源
         """
-        # 尝试从不同的属性中提取函数名
+        # 第一优先级：使用 FunctionReference 作为单一真实来源
+        function_name = extract_function_reference(node)
+        if function_name and function_name != "UnknownFunction":
+            return function_name
+        
+        # 第二优先级：基于节点类型的回退逻辑
         if "SpawnActorFromClass" in node.class_type:
             return "SpawnActorFromClass"
         elif "LatentAbilityCall" in node.class_type:
-            # 尝试从FunctionReference中提取
-            func_ref = node.properties.get("FunctionReference", {})
-            if isinstance(func_ref, dict):
-                member_name = func_ref.get("MemberName", "LatentAbilityCall")
-                return str(member_name)
             return "LatentAbilityCall"
         elif "AddDelegate" in node.class_type:
             return "AddDelegate"
