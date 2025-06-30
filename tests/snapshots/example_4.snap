@@ -3,19 +3,29 @@
   As Attributes Menu Controller.HandleCloseButtonClicked()
   ParentMenuAnchor.Close()
 
-#### Event: OnMenuOpenChanged_Event(bIsOpen: bool)
+#### Event: WidgetControllerSet
 
-  if (stmt_result_95B2E7F6):
-    // 空分支
-  else:
-    As Attributes Menu Controller.HandleCloseButtonClicked()
-
-#### Event: Construct
-
-  // Unsupported node: /Script/BlueprintGraph.K2Node_AssignDelegate (K2Node_AssignDelegate_0)
-  // Unsupported node: /Script/BlueprintGraph.K2Node_AssignDelegate (K2Node_AssignDelegate_3)
-  // Unsupported node: /Script/BlueprintGraph.K2Node_AssignDelegate (K2Node_AssignDelegate_1)
-  // Unsupported node: /Script/BlueprintGraph.K2Node_AssignDelegate (K2Node_AssignDelegate_2)
+  if (cast(WidgetController as AttributesMenuController)):
+    declare AsAttributesMenuController: AttributesMenuController = cast(WidgetController as AttributesMenuController)
+    As Attributes Menu Controller = "UnknownExpression"
+  for each (ArrayElement, ArrayIndex) in PrimaryRows.GetAllChildren():
+    if (cast("UnknownExpression" as PlayerUserWidget)):
+      declare AsPlayerUserWidget: PlayerUserWidget = cast("UnknownExpression" as PlayerUserWidget)
+      As Attributes Menu Controller.GetPrimaryRowController(Index: "UnknownExpression")
+      "UnknownExpression".SetWidgetController(InWidgetController: As Attributes Menu Controller.GetPrimaryRowController(Index: "UnknownExpression"))
+  for each (ArrayElement, ArrayIndex) in LeftArea.GetAllChildren():
+    if (cast("UnknownExpression" as PlayerUserWidget)):
+      declare AsPlayerUserWidget: PlayerUserWidget = cast("UnknownExpression" as PlayerUserWidget)
+      SecondaryRows.Array_AddUnique(self: None, NewItem: "UnknownExpression")
+  for each (ArrayElement, ArrayIndex) in RightArea.GetAllChildren():
+    if (cast("UnknownExpression" as PlayerUserWidget)):
+      declare AsPlayerUserWidget: PlayerUserWidget = cast("UnknownExpression" as PlayerUserWidget)
+      SecondaryRows.Array_AddUnique(self: None, NewItem: "UnknownExpression")
+  for each (ArrayElement, ArrayIndex) in SecondaryRows:
+    As Attributes Menu Controller.GetSecondaryRowController(Index: "UnknownExpression")
+    "UnknownExpression".SetWidgetController(InWidgetController: As Attributes Menu Controller.GetSecondaryRowController(Index: "UnknownExpression"))
+  As Attributes Menu Controller.SetAvailablePointsText(InTextBlock: AvailablePointsValue)
+  As Attributes Menu Controller.UpdateUI()
 
 #### Event: OnClicked_Event
 
@@ -24,3 +34,17 @@
 #### Event: OnClicked_Event_0
 
   As Attributes Menu Controller.HandleSubmitButtonClicked()
+
+#### Event: OnMenuOpenChanged_Event(bIsOpen: bool)
+
+  if (OnMenuOpenChanged_Event):
+    // 空分支
+  else:
+    As Attributes Menu Controller.HandleCloseButtonClicked()
+
+#### Event: Construct
+
+  CloseAttributesMenu += CloseButton.Button
+  OnMenuOpenChanged_Event += ParentMenuAnchor
+  OnClicked_Event += WBP_ResetButton.Button
+  OnClicked_Event_0 += WBP_SummitButton.Button

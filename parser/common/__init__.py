@@ -13,7 +13,9 @@ from .graph_utils import (
     # 参数解析
     parse_function_arguments, should_create_temp_variable_for_node, generate_temp_variable_name,
     # 节点验证
-    has_execution_pins, get_output_pins, get_input_pins
+    has_execution_pins, get_output_pins, get_input_pins,
+    # 宏节点特殊处理
+    extract_macro_name
 )
 
 # 装饰器系统
@@ -37,6 +39,8 @@ __all__ = [
     'parse_function_arguments', 'should_create_temp_variable_for_node', 'generate_temp_variable_name',
     # 节点验证
     'has_execution_pins', 'get_output_pins', 'get_input_pins',
+    # 宏节点特殊处理
+    'extract_macro_name',
     # 装饰器系统
     'register_processor', 'node_processor_registry',
     # 对象解析器

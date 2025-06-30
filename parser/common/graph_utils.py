@@ -395,4 +395,51 @@ def get_input_pins(node: GraphNode, exclude_exec: bool = True) -> List[GraphPin]
     pins = [pin for pin in node.pins if pin.direction == "input"]
     if exclude_exec:
         pins = [pin for pin in pins if pin.pin_type != "exec"]
-    return pins 
+    return pins
+
+
+# ================================================================
+# 宏节点特殊处理工具函数
+# ================================================================
+
+def extract_macro_name(node: GraphNode) -> str:
+    """
+    从宏节点中安全地提取宏名称
+    用于支持专用宏处理器的分发逻辑
+    
+    :param node: 宏节点 (K2Node_MacroInstance)
+    :return: 宏名称，如 "ForEachLoop", "WhileLoop" 等，如果无法提取则返回 "Unknown"
+    """
+    if not node or "K2Node_MacroInstance" not in node.class_type:
+        return "Unknown"
+    
+    # 尝试从 MacroGraphReference 属性中提取宏名称
+    macro_ref = node.properties.get("MacroGraphReference", "")
+    
+    if isinstance(macro_ref, dict):
+        # 如果是字典格式，尝试从 MacroGraph 字段提取
+        macro_graph = macro_ref.get("MacroGraph", "")
+        if isinstance(macro_graph, str) and ":" in macro_graph:
+            # 格式通常为: "/Script/Engine.EdGraph'/Engine/EditorBlueprintResources/StandardMacros.StandardMacros:ForEachLoop'"
+            # 提取冒号后的部分，并去除末尾的单引号
+            parts = macro_graph.split(":")
+            if len(parts) > 1:
+                macro_name = parts[-1].rstrip("'")
+                return macro_name
+    elif isinstance(macro_ref, str):
+        # 如果是字符串格式，使用正则表达式提取
+        # 匹配形如 MacroGraph="/path/to/macro:MacroName" 的模式
+        match = re.search(r'MacroGraph="[^"]*:([^"\']+)', macro_ref)
+        if match:
+            return match.group(1)
+    
+    # 如果无法从标准路径提取，尝试其他可能的属性
+    # 某些版本的UE可能使用不同的属性名
+    for attr_name in ["MacroName", "MacroType", "GraphName"]:
+        if attr_name in node.properties:
+            value = node.properties[attr_name]
+            if isinstance(value, str) and value.strip():
+                return value.strip().strip('"')
+    
+    # 最后的回退：如果所有方法都失败，返回 "Unknown"
+    return "Unknown" 

@@ -19,7 +19,7 @@ from .common import (
     extract_event_name, extract_event_parameters, find_execution_output_pin,
     extract_variable_reference, extract_function_reference, 
     find_then_pin, find_else_pin, find_pin_by_aliases,
-    has_execution_pins
+    has_execution_pins, extract_macro_name, node_processor_registry
 )
 
 
@@ -413,7 +413,7 @@ def process_array_access_node(analyzer, context, node) -> Optional[FunctionCallE
 # 宏处理器
 # ============================================================================
 
-@register_processor("K2Node_MacroInstance:ForEachLoop")
+@register_processor("K2Node_MacroInstance:ForEachLoop", "/Script/BlueprintGraph.K2Node_MacroInstance:ForEachLoop")
 def process_foreach_macro(analyzer, context, node) -> NodeProcessingResult:
     """
     处理ForEach宏
@@ -485,7 +485,7 @@ def process_foreach_macro(analyzer, context, node) -> NodeProcessingResult:
     return NodeProcessingResult(node=loop_node, continuation_pin=completed_pin)
 
 
-@register_processor("K2Node_MacroInstance:WhileLoop")
+@register_processor("K2Node_MacroInstance:WhileLoop", "/Script/BlueprintGraph.K2Node_MacroInstance:WhileLoop")
 def process_while_macro(analyzer, context, node) -> Optional[LoopNode]:
     """
     处理While宏
@@ -512,31 +512,95 @@ def process_while_macro(analyzer, context, node) -> Optional[LoopNode]:
     return loop_node
 
 
-@register_processor("K2Node_MacroInstance")
+@register_processor("K2Node_MacroInstance", "/Script/BlueprintGraph.K2Node_MacroInstance")
 def process_generic_macro(analyzer, context, node) -> Optional[FunctionCallNode]:
     """
     处理通用宏（作为函数调用）
+    增强的警告机制：检测是否存在本应被调用但未被调用的专用处理器
     """
+    # 注释：专用处理器的调度由analyzer.py中的_process_node方法处理
+    # 如果到达这里，说明没有找到专用处理器，或者专用处理器处理失败
+    macro_name = extract_macro_name(node)
+    specific_key = f"{node.class_type}:{macro_name}"
+    
     macro_ref = node.properties.get("MacroGraphReference", "")
     
     # 提取宏名称
     if isinstance(macro_ref, dict):
-        macro_name = macro_ref.get("MacroGraph", "UnknownMacro")
+        display_macro_name = macro_ref.get("MacroGraph", "UnknownMacro")
     elif isinstance(macro_ref, str):
-        macro_name = macro_ref if macro_ref else "UnknownMacro"
+        display_macro_name = macro_ref if macro_ref else "UnknownMacro"
     else:
-        macro_name = "UnknownMacro"
+        display_macro_name = "UnknownMacro"
     
-    # 简化宏名称
-    if isinstance(macro_name, str) and "'" in macro_name:
-        macro_name = macro_name.split("'")[-2].split(".")[-1] if "." in macro_name else macro_name
+    # 简化宏名称用于显示
+    if isinstance(display_macro_name, str) and "'" in display_macro_name:
+        display_macro_name = display_macro_name.split("'")[-2].split(".")[-1] if "." in display_macro_name else display_macro_name
     
     # 解析参数
     arguments = analyzer._parse_function_arguments(context, node, {"self"})
     
     return FunctionCallNode(
         target=None,
-        function_name=f"Macro_{macro_name}",
+        function_name=f"Macro_{display_macro_name}",
         arguments=arguments,
+        source_location=create_source_location(node)
+    )
+
+
+# ============================================================================
+# 委托分配处理器
+# ============================================================================
+
+@register_processor(
+    "K2Node_AssignDelegate",
+    "/Script/BlueprintGraph.K2Node_AssignDelegate"
+)
+def process_assign_delegate(analyzer, context, node) -> Optional[AssignmentNode]:
+    """
+    处理委托分配节点 - 将事件绑定转换为赋值操作
+    K2Node_AssignDelegate -> AssignmentNode
+    
+    委托分配的本质是事件订阅，即将一个对象的事件（如按钮的OnClicked）
+    与一个处理函数（如蓝图的CustomEvent）绑定
+    """
+    # 解析委托目标对象和属性
+    delegate_pin = find_pin(node, "Delegate", "input")
+    if not delegate_pin or not delegate_pin.linked_to:
+        # 没有委托连接，创建默认的赋值
+        return AssignmentNode(
+            target=VariableGetExpression(
+                variable_name="UnknownDelegate",
+                is_self_variable=True
+            ),
+            value_expression=LiteralExpression(value="null", literal_type="delegate"),
+            is_local_variable=False,
+            source_location=create_source_location(node)
+        )
+    
+    # 解析委托目标（通常是一个属性访问表达式）
+    delegate_target_expr = analyzer._resolve_data_expression(context, delegate_pin)
+    
+    # 解析委托值（要绑定的函数）
+    value_pin = find_pin(node, "Value", "input")
+    if value_pin:
+        value_expr = analyzer._resolve_data_expression(context, value_pin)
+    else:
+        # 如果没有 Value 引脚，查找其他可能的引脚
+        # 有些版本的UE可能使用不同的引脚名称
+        for pin in node.pins:
+            if pin.direction == "input" and pin.pin_type != "exec" and pin.pin_name != "Delegate":
+                value_expr = analyzer._resolve_data_expression(context, pin)
+                break
+        else:
+            # 如果没有找到值引脚，使用默认值
+            value_expr = LiteralExpression(value="null", literal_type="delegate")
+    
+    # 创建赋值节点，使用 += 操作符表示委托绑定
+    return AssignmentNode(
+        target=delegate_target_expr,
+        value_expression=value_expr,
+        is_local_variable=False,  # 委托分配通常不是局部变量
+        operator="+=",  # 委托绑定使用 += 操作符
         source_location=create_source_location(node)
     ) 

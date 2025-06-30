@@ -402,6 +402,7 @@ class AssignmentNode(Statement):
     target: Expression = None  # 赋值目标（左值表达式）
     value_expression: Optional[Expression] = None  # 赋值源（右值表达式）
     is_local_variable: bool = False  # 是否是局部变量声明
+    operator: str = "="  # 赋值操作符，支持 "=" 和 "+=" 等
     
     # 向后兼容性属性
     @property

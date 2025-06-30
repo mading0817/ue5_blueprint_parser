@@ -379,10 +379,13 @@ class MarkdownEventGraphFormatter(ASTVisitor, Formatter):
         else:
             target_str = node.variable_name
         
+        # 使用新的operator字段，如果没有则默认使用"="
+        operator = getattr(node, 'operator', '=')
+        
         if node.is_local_variable:
             self._add_line(f"let {target_str} = {value_str}")
         else:
-            self._add_line(f"{target_str} = {value_str}")
+            self._add_line(f"{target_str} {operator} {value_str}")
         
         return ""
     

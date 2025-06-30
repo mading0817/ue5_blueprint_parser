@@ -34,15 +34,16 @@ The parser operates through distinct stages, primarily focusing on **EventGraph 
 #### Key Architectural Features:
 
 1.  **Execution-Flow-Driven Traversal**:
-    *   The parser's `analyzer` operates by strictly following the execution pins (`exec`) from an entry point (e.g., an Event node). This ensures the resulting AST's control flow (sequences, branches, loops) perfectly matches the blueprint's execution order.
+    *   The parser's `analyzer` operates by strictly following the execution pins (`exec`) from an entry point (e.g., an Event node). This ensures the resulting AST's control flow (sequences, branches, loops) perfectly matches the blueprint's execution order. It now correctly traverses all execution paths originating from event nodes, resolving the previously missing logic.
 
-2.  **Context-Aware Structural Handlers**:
-    *   As the traverser encounters nodes, it uses specific handlers to build the AST. The key is how it handles complex structures:
-    *   **Asynchronous Nodes (`LatentActionNode`)**: Instead of flattening the logic, the parser creates a dedicated `ASTAwaitBlock` (represented by `LatentActionNode`). This block contains the initial async call and a collection of **callback blocks**. Each callback block (e.g., `on ValidData:`, `on Cancelled:`) contains the complete sub-graph of logic that executes when that specific callback delegate is fired. This preserves the essential asynchronous structure.
+2.  **Unified Node Identity & Strict Processor Contract**:
+    *   As the traverser encounters nodes, it uses specific handlers to build the AST. A key enhancement is the implementation of a **Strict Processor Contract**. Processors are now explicitly designed to return either a `Statement` (for execution flow) or an `Expression` (for data flow/value resolution).
+    *   This ensures that any node, when referenced as a data source, provides a meaningful `Expression` (e.g., `EventReferenceExpression` for event names) rather than a generic `Statement` that would lead to temporary variable generation (`stmt_result_...`).
+    *   This also enables high-fidelity representation of delegate assignments, such as `Button.OnClicked += OnClicked_Event`.
 
-3.  **Generic Fallback Handler for Extensibility**:
-    *   To ensure robustness and support for custom or unknown nodes, the analyzer includes a **Generic Fallback Handler**.
-    *   If the parser encounters a node type it doesn't have a specific handler for (like a custom `K2Node_Message`), it does not fail. Instead, the fallback handler inspects the node's pin structure. If the pins match a standard pattern (e.g., `execute` in, `then` out), it infers the node to be a function call and creates a corresponding `ASTFunctionCall` node. This allows the parser to gracefully handle new or project-specific nodes without modification.
+3.  **Refined Fallback Handling for Extensibility**:
+    *   The analyzer's fallback mechanism has been refined. It no longer generates generic temporary variables (`stmt_result_...`) for known node types whose processors fail to return an `Expression` when one is expected. Instead, this indicates a design flaw in the processor or an `UnsupportedExpression` is explicitly returned.
+    *   The generic fallback is now strictly reserved for truly unknown or unhandled node types, maintaining robustness while enforcing a cleaner AST generation for recognized patterns.
 
 ### 3. Stage Three: AST Rendering & UI Tree Formatting
 
@@ -51,7 +52,7 @@ The parser operates through distinct stages, primarily focusing on **EventGraph 
     - For EventGraph: A structurally accurate Abstract Syntax Tree (AST) from Stage Two.
     - For UI Widgets: A `WidgetNode` hierarchy (as detailed below).
 - **Output**: A formatted string (e.g., Markdown pseudo-code for EventGraph, hierarchical Markdown for UI).
-- **Responsibility**: This stage acts as a "printer" that traverses the provided data structure (either an AST or a Widget tree) and renders it into a human-readable format. It is implemented by specialized formatter classes, such as `MarkdownEventGraphFormatter` and `WidgetTreeFormatter`, which inherit from the `Formatter` abstract base class to handle different data types.
+- **Responsibility**: This stage acts as a a "printer" that traverses the provided data structure (either an AST or a Widget tree) and renders it into a human-readable format. It is implemented by specialized formatter classes, such as `MarkdownEventGraphFormatter` and `WidgetTreeFormatter`, which inherit from the `Formatter` abstract base class to handle different data types. It has been updated to correctly interpret and display new AST nodes like `EventReferenceExpression` and enhanced `AssignmentNode` operators (e.g., `+=`).
 
 ### 4. UI Widget Parsing Pipeline (Parallel Path for User Interfaces)
 
@@ -67,10 +68,26 @@ The parser operates through distinct stages, primarily focusing on **EventGraph 
 
 ## Current Refactoring & Optimization Focus
 
-Based on the latest analysis, the primary refactoring effort will center on maximizing code reduction and quality within the existing robust architecture. Key areas include:
+Based on the latest analysis, the primary refactoring effort centered on establishing a **Strict Contract** between the `analyzer` and `processors` for handling Statement and Expression types. This involved:
 
-1.  **Consolidation of Auxiliary Functions**: Many stateless utility functions (e.g., pin finding, property extraction, argument parsing) are currently distributed across `analyzer.py` and `processors.py`. These will be systematically identified and moved into `parser/common/graph_utils.py` and potentially `parser/common/builder_utils.py` to centralize common graph and AST-building operations.
-2.  **Elimination of Redundancy**: Address minor code duplications, such as aliased pin name lookups (e.g., "then" vs. "True"), by creating unified helper functions in `parser/common/graph_utils.py`.
-3.  **Code Simplification**: While no significant "dead code" was found due to the dispatcher pattern, functions with complex internal logic (e.g., `_resolve_data_expression` in `analyzer.py`) will be reviewed for opportunities to decompose them into smaller, more manageable private methods within their respective classes, where applicable.
+1.  **Elimination of Implicit Temporary Variable Generation**: The problematic `stmt_result_...` fallback in `analyzer.py` has been removed. Processors are now strictly required to return the expected AST type (`Statement` for execution, `Expression` for data/value). If a processor returns a `Statement` when an `Expression` is expected, it now explicitly signifies an error, enforcing better design.
+2.  **Enhanced Event & Delegate Handling**: Custom Events (`K2Node_CustomEvent`) and other event nodes now provide a distinct `EventReferenceExpression` when used as data sources (e.g., in `AssignDelegate` nodes).
+3.  **High-Fidelity Delegate Assignment**: The `AssignDelegate` processor and `AssignmentNode` now support `+=` operator semantics, accurately reflecting the blueprint's event binding behavior.
 
 This surgical approach aims to enhance code clarity, maintainability, and reusability without altering the established pipeline or core functionality.
+
+## Testing and Snapshot Workflow
+
+To ensure consistency and ease of development, the testing workflow has been refined:
+
+1.  **Manual Snapshot Generation**: When blueprint parsing logic changes and new expected outputs are desired, you can manually generate or update snapshots by running the `tests/generate_snapshots.py` script. This script processes all fixture files in `tests/fixtures/` and saves their parsed output as `.snap` files in `tests/snapshots/`.
+    ```bash
+    .venv/Scripts/python tests/generate_snapshots.py
+    ```
+
+2.  **Automated Snapshot Consistency Test**: The `tests/test_snapshots.py` script is used for automated testing (e.g., via `pytest` or CI/CD pipelines). It verifies that the current parser output for all fixtures matches the existing snapshots. If any discrepancies are found, the test will fail.
+    ```bash
+    .venv/Scripts/python -m pytest tests/test_snapshots.py
+    ```
+
+This separation ensures a clear distinction between updating expected results and verifying code correctness.

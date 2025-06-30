@@ -26,9 +26,9 @@ from .models import (
 from .symbol_table import SymbolTable, Symbol
 from .common import (
     find_pin, create_source_location, get_pin_default_value, extract_pin_type,
-    extract_variable_reference, extract_function_reference, 
+    extract_variable_reference, extract_function_reference, extract_event_name,
     parse_function_arguments, should_create_temp_variable_for_node, generate_temp_variable_name,
-    has_execution_pins, node_processor_registry
+    has_execution_pins, node_processor_registry, extract_macro_name
 )
 
 # 导入处理器模块以触发装饰器注册
@@ -101,6 +101,7 @@ class GraphAnalyzer:
         """
         分析蓝图图并返回AST节点列表
         主入口方法 - 使用统一解析模型架构
+        重构：优先识别事件入口节点，确保事件逻辑完整解析
         """
         # Pass 1: 符号与依赖分析
         pin_usage_counts = self._perform_symbol_analysis(graph)
@@ -112,8 +113,24 @@ class GraphAnalyzer:
             pin_usage_counts=pin_usage_counts
         )
         
-        # 处理所有入口节点
+        # 重构：首先遍历整个图，找出所有事件入口节点
+        event_entry_nodes = []
+        for node in graph.nodes.values():
+            if node.class_type in ["K2Node_Event", "K2Node_CustomEvent", "K2Node_ComponentBoundEvent",
+                                   "/Script/BlueprintGraph.K2Node_Event", 
+                                   "/Script/BlueprintGraph.K2Node_CustomEvent",
+                                   "/Script/BlueprintGraph.K2Node_ComponentBoundEvent"]:
+                event_entry_nodes.append(node)
+        
+        # 处理所有事件入口节点，确保每个事件的完整逻辑都被解析
         ast_nodes = []
+        for event_node in event_entry_nodes:
+            if event_node.node_guid not in context.visited_nodes:
+                ast_node = self._process_node(context, event_node)
+                if ast_node:
+                    ast_nodes.append(ast_node)
+        
+        # 处理其他剩余的入口节点（如果有的话）
         for entry_node in graph.entry_nodes:
             if entry_node.node_guid not in context.visited_nodes:
                 ast_node = self._process_node(context, entry_node)
@@ -141,6 +158,7 @@ class GraphAnalyzer:
     def _process_node(self, context: AnalysisContext, node: GraphNode) -> Optional[ASTNode]:
         """
         处理单个节点，使用全局注册表查找处理器
+        增强的分发器逻辑：支持宏节点的专用-通用两阶段查找
         """
         if node.node_guid in context.visited_nodes:
             return None
@@ -148,10 +166,37 @@ class GraphAnalyzer:
         # 标记为已访问
         context.visited_nodes.add(node.node_guid)
         
-        # 从全局注册表查找处理器
-        processor = node_processor_registry.get_processor(node.class_type)
+        processor_key = node.class_type
+        
+        # 阶段一：宏节点特殊处理
+        if node.class_type in ["K2Node_MacroInstance", "/Script/BlueprintGraph.K2Node_MacroInstance"]:
+            macro_name = extract_macro_name(node)
+            specific_key = f"{node.class_type}:{macro_name}"
+            
+            # 尝试使用专用键查找
+            specific_processor = node_processor_registry.get_processor(specific_key)
+            if specific_processor:
+                result = specific_processor(self, context, node)
+                # 处理 NodeProcessingResult 类型
+                if hasattr(result, 'node') and hasattr(result, 'continuation_pin'):
+                    # 这是 NodeProcessingResult，设置延续引脚
+                    if result.continuation_pin:
+                        context.pending_continuation_pin = result.continuation_pin
+                    return result.node
+                return result
+            # 如果没有专用处理器，则 processor_key 保持原样，自然进入通用处理流程
+        
+        # 阶段二：通用查找
+        processor = node_processor_registry.get_processor(processor_key)
         if processor:
-            return processor(self, context, node)
+            result = processor(self, context, node)
+            # 处理 NodeProcessingResult 类型
+            if hasattr(result, 'node') and hasattr(result, 'continuation_pin'):
+                # 这是 NodeProcessingResult，设置延续引脚
+                if result.continuation_pin:
+                    context.pending_continuation_pin = result.continuation_pin
+                return result.node
+            return result
         else:
             # 未知节点类型，创建UnsupportedNode
             return UnsupportedNode(
@@ -363,18 +408,25 @@ class GraphAnalyzer:
             default_value = node.properties.get("ObjectRef", "")
             return LiteralExpression(value=default_value, literal_type="literal")
         else:
+            # 特殊处理：事件节点作为表达式的情况
+            if node.class_type in ["K2Node_Event", "K2Node_CustomEvent", "K2Node_ComponentBoundEvent",
+                                   "/Script/BlueprintGraph.K2Node_Event", 
+                                   "/Script/BlueprintGraph.K2Node_CustomEvent",
+                                   "/Script/BlueprintGraph.K2Node_ComponentBoundEvent"]:
+                # 事件节点作为数据源时，返回EventReferenceExpression
+                event_name = extract_event_name(node)
+                return EventReferenceExpression(
+                    event_name=event_name,
+                    source_location=create_source_location(node)
+                )
+            
             # 通用处理：尝试使用处理器
             processor = node_processor_registry.get_processor(node.class_type)
             if processor:
                 result = processor(self, context, node)
                 if isinstance(result, Expression):
                     return result
-                elif isinstance(result, Statement):
-                    # 如果处理器返回语句，创建一个表示该语句结果的表达式
-                    return TemporaryVariableExpression(
-                        temp_var_name=f"stmt_result_{node.node_guid[:8]}",
-                        source_location=create_source_location(node)
-                    )
+                # 删除了对Statement的处理，如果处理器错误地返回了Statement，让它直接失败
             
             # 默认返回未知表达式
             return LiteralExpression(value="UnknownExpression", literal_type="unknown")

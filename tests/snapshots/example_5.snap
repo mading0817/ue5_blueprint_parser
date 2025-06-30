@@ -1,16 +1,27 @@
-#### Event: WidgetControllerSet
+#### Event: K2_ActivateAbility
 
-  if (cast(WidgetController as AttributesMenuController)):
-    declare AsAttributesMenuController: AttributesMenuController = cast(WidgetController as AttributesMenuController)
-    As Attributes Menu Controller = stmt_result_436DD8B2
-  // Unsupported node: /Script/BlueprintGraph.K2Node_MacroInstance (K2Node_MacroInstance_0)
-  if (cast("UnknownExpression" as PlayerUserWidget)):
-    declare AsPlayerUserWidget: PlayerUserWidget = cast("UnknownExpression" as PlayerUserWidget)
-    As Attributes Menu Controller.GetPrimaryRowController(Index: "UnknownExpression")
-    "UnknownExpression".SetWidgetController(InWidgetController: As Attributes Menu Controller.GetPrimaryRowController(Index: "UnknownExpression"))
-  // Unsupported node: /Script/BlueprintGraph.K2Node_MacroInstance (K2Node_MacroInstance_3)
-  if (cast("UnknownExpression" as PlayerUserWidget)):
-    declare AsPlayerUserWidget: PlayerUserWidget = cast("UnknownExpression" as PlayerUserWidget)
-    SecondaryRows.Array_AddUnique(self: None, NewItem: stmt_result_EBC12EB0)
-  As Attributes Menu Controller.SetAvailablePointsText(InTextBlock: AvailablePointsValue)
-  As Attributes Menu Controller.UpdateUI()
+  K2_CommitAbility()
+  if (IsOwningActorPlayerControlled()):
+    // Unsupported node: /Script/GameplayAbilitiesEditor.K2Node_LatentAbilityCall (K2Node_LatentAbilityCall_2)
+  else:
+    if (cast(AvatarActor as BaseCharacter)):
+      declare AsBaseCharacter: BaseCharacter = cast(AvatarActor as BaseCharacter)
+      // Unsupported node: /Script/BlueprintGraph.K2Node_AddDelegate (K2Node_AddDelegate_0)
+      // Unsupported node: /Script/BlueprintGraph.K2Node_Message (K2Node_Message_2)
+      // Unsupported node: /Script/GameplayAbilitiesEditor.K2Node_LatentAbilityCall (K2Node_LatentAbilityCall_0)
+      if (AvatarActor.HasAuthority()):
+        for each (ArrayElement, ArrayIndex) in "UnknownExpression":
+          // Unsupported node: /Script/GameplayAbilitiesEditor.K2Node_LatentAbilityCall (K2Node_LatentAbilityCall_1)
+
+#### Event: Spawn
+
+  // Unsupported node: /Script/BlueprintGraph.K2Node_SpawnActorFromClass (K2Node_SpawnActorFromClass_0)
+  Macro_StandardMacros(CurrentIndex)
+  if ("UnknownExpression"):
+    // 空分支
+  else:
+    K2_ClearAndInvalidateTimerHandle(WorldContextObject: None, Handle: SummonTimerHandle)
+
+#### Event: OnMotionWarping(TargetLocation: struct)
+
+  TargetLocation = OnMotionWarping
