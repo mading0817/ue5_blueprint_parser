@@ -21,14 +21,17 @@ from .models import (
     VariableDeclaration, CallbackBlock,
     # 新架构核心数据结构
     ResolutionResult, EventReferenceExpression, LoopVariableExpression,
-    NodeProcessingResult
+    NodeProcessingResult,
+    # 新增的AST节点
+    GenericCallNode, FallbackNode
 )
 from .symbol_table import SymbolTable, Symbol
+from .scope_manager import ScopeManager
 from .common import (
     find_pin, create_source_location, get_pin_default_value, extract_pin_type,
     extract_variable_reference, extract_function_reference, extract_event_name,
     parse_function_arguments, should_create_temp_variable_for_node, generate_temp_variable_name,
-    has_execution_pins, node_processor_registry, extract_macro_name
+    has_execution_pins, node_processor_registry, extract_macro_name, parse_object_path
 )
 
 # 导入处理器模块以触发装饰器注册
@@ -46,6 +49,7 @@ class AnalysisContext:
     """
     graph: BlueprintGraph
     symbol_table: SymbolTable = field(default_factory=SymbolTable)  # 符号表，管理作用域和变量
+    scope_manager: ScopeManager = field(default_factory=ScopeManager)  # 新增：作用域管理器，精确管理变量可见性
     pin_usage_counts: Dict[str, int] = field(default_factory=dict)  # pin_key -> usage_count
     scope_prelude: List[Statement] = field(default_factory=list)  # 当前作用域的前置语句（临时变量声明等）
     memoization_cache: Dict[str, Expression] = field(default_factory=dict)  # pin_key -> cached_expression
@@ -186,7 +190,7 @@ class GraphAnalyzer:
                 return result
             # 如果没有专用处理器，则 processor_key 保持原样，自然进入通用处理流程
         
-        # 阶段二：通用查找
+        # 阶段二：专用处理器查找
         processor = node_processor_registry.get_processor(processor_key)
         if processor:
             result = processor(self, context, node)
@@ -197,14 +201,212 @@ class GraphAnalyzer:
                     context.pending_continuation_pin = result.continuation_pin
                 return result.node
             return result
-        else:
-            # 未知节点类型，创建UnsupportedNode
-            return UnsupportedNode(
-                class_name=node.class_type,
-                node_name=node.node_name,
+        
+        # 阶段三：通用可调用处理器（Generic Callable Processor）
+        generic_callable_result = self._try_generic_callable_processor(context, node)
+        if generic_callable_result:
+            return generic_callable_result
+        
+        # 阶段四：备用处理器（Fallback Processor）- 确保永不失败
+        return self._create_fallback_node(context, node)
+    
+    def _try_generic_callable_processor(self, context: AnalysisContext, node: GraphNode) -> Optional[GenericCallNode]:
+        """
+        通用可调用处理器 - 三层梯度处理器策略的第三层
+        处理大部分"函数调用类"节点，如 SpawnActorFromClass, LatentAbilityCall 等
+        """
+        # 定义通用可调用节点类型列表
+        generic_callable_types = {
+            "K2Node_SpawnActorFromClass", "/Script/BlueprintGraph.K2Node_SpawnActorFromClass",
+            "K2Node_LatentAbilityCall", "/Script/GameplayAbilitiesEditor.K2Node_LatentAbilityCall",
+            "K2Node_AddDelegate", "/Script/BlueprintGraph.K2Node_AddDelegate",
+            "K2Node_Message", "/Script/BlueprintGraph.K2Node_Message",
+            "K2Node_CreateDelegate", "/Script/BlueprintGraph.K2Node_CreateDelegate",
+            "K2Node_RemoveDelegate", "/Script/BlueprintGraph.K2Node_RemoveDelegate"
+        }
+        
+        if node.class_type not in generic_callable_types:
+            return None
+        
+        # 提取函数名（从节点类型或属性中）
+        function_name = self._extract_generic_function_name(node)
+        
+        # 查找目标对象（如果有self引脚）
+        target_expr = None
+        self_pin = find_pin(node, "self", "input")
+        if self_pin and self_pin.linked_to:
+            target_expr = self._resolve_data_expression(context, self_pin)
+        
+        # 解析参数
+        arguments = self._parse_function_arguments(context, node, exclude_pins={"self"})
+        
+        return GenericCallNode(
+            target=target_expr,
+            function_name=function_name,
+            arguments=arguments,
+            node_class=node.class_type,
+            source_location=create_source_location(node)
+        )
+    
+    def _create_fallback_node(self, context: AnalysisContext, node: GraphNode) -> FallbackNode:
+        """
+        备用处理器 - 三层梯度处理器策略的最后一层
+        创建FallbackNode确保解析过程永不中断
+        """
+        # 收集节点的关键属性
+        key_properties = {}
+        for key, value in node.properties.items():
+            # 只保留关键属性，避免输出过于冗长
+            if key in ["FunctionReference", "TargetType", "MacroGraphReference", "DelegatePropertyName"]:
+                key_properties[key] = str(value)[:100]  # 限制长度
+        
+        # 收集引脚信息
+        pin_info = []
+        for pin in node.pins[:10]:  # 限制引脚数量
+            pin_info.append((pin.pin_name, pin.direction, pin.pin_type))
+        
+        return FallbackNode(
+            class_name=node.class_type,
+            node_name=node.node_name,
+            properties=key_properties,
+            pin_info=pin_info,
+            source_location=create_source_location(node)
+        )
+    
+    def _try_build_data_flow_expression(self, context: AnalysisContext, node: GraphNode) -> Optional[Expression]:
+        """
+        专门处理数据流中的特殊节点类型
+        解决剩余的UnsupportedExpression问题
+        """
+        # K2Node_Self: 返回self引用
+        if node.class_type in ["K2Node_Self", "/Script/BlueprintGraph.K2Node_Self"]:
+            return VariableGetExpression(
+                variable_name="self",
+                is_self_variable=True,
                 source_location=create_source_location(node)
             )
-    
+        
+        # K2Node_Knot: 透明传递连接的值
+        elif node.class_type in ["K2Node_Knot", "/Script/BlueprintGraph.K2Node_Knot"]:
+            # 查找输入引脚并递归解析
+            for pin in node.pins:
+                if pin.direction == "input" and pin.linked_to:
+                    return self._resolve_data_expression(context, pin)
+            # 如果没有输入连接，返回null
+            return LiteralExpression(value="null", literal_type="null")
+        
+        # K2Node_GetArrayItem: 数组元素访问
+        elif node.class_type in ["K2Node_GetArrayItem", "/Script/BlueprintGraph.K2Node_GetArrayItem"]:
+            array_pin = find_pin(node, "Array", "input")
+            index_pin = find_pin(node, "Index", "input")
+            
+            array_expr = self._resolve_data_expression(context, array_pin) if array_pin else LiteralExpression(value="[]", literal_type="array")
+            index_expr = self._resolve_data_expression(context, index_pin) if index_pin else LiteralExpression(value="0", literal_type="int")
+            
+            return FunctionCallExpression(
+                target=array_expr,
+                function_name="Array_Get",
+                arguments=[("Index", index_expr)],
+                source_location=create_source_location(node)
+            )
+        
+        # K2Node_PromotableOperator: 操作符调用
+        elif node.class_type in ["K2Node_PromotableOperator", "/Script/BlueprintGraph.K2Node_PromotableOperator"]:
+            # 从节点属性中提取操作符名称
+            func_ref = node.properties.get("FunctionReference", {})
+            if isinstance(func_ref, dict):
+                func_name = func_ref.get("MemberName", "UnknownOperator")
+            else:
+                func_name = "UnknownOperator"
+            
+            # 解析操作数
+            arguments = self._parse_function_arguments(context, node, exclude_pins={"self"})
+            
+            return FunctionCallExpression(
+                target=None,
+                function_name=str(func_name),
+                arguments=arguments,
+                source_location=create_source_location(node)
+            )
+        
+        # K2Node_MacroInstance: 在数据流中作为宏调用结果
+        elif node.class_type in ["K2Node_MacroInstance", "/Script/BlueprintGraph.K2Node_MacroInstance"]:
+            macro_name = extract_macro_name(node)
+            
+            # 特殊情况：ForEachLoop在数据流中应该返回循环变量而不是宏调用
+            if "ForEachLoop" in macro_name or "ForEach" in macro_name:
+                # 查找输出引脚，如果是循环变量输出，直接返回循环变量表达式
+                for pin in node.pins:
+                    if pin.direction == "output" and pin.pin_name in ["Array Element", "Array Index"]:
+                        # 检查ScopeManager中是否有对应的变量
+                        scope_expr = context.scope_manager.lookup_variable(pin.pin_id)
+                        if scope_expr:
+                            return scope_expr
+                        # 如果ScopeManager中没有，创建循环变量表达式
+                        is_index = "Index" in pin.pin_name
+                        return LoopVariableExpression(
+                            variable_name="ArrayIndex" if is_index else "ArrayElement",
+                            is_index=is_index,
+                            loop_id=node.node_guid,
+                            source_location=create_source_location(node)
+                        )
+            
+            # 其他宏实例：解析为宏调用
+            arguments = self._parse_function_arguments(context, node, exclude_pins={"self"})
+            
+            return FunctionCallExpression(
+                target=None,
+                function_name=f"Macro_{macro_name}",
+                arguments=arguments,
+                source_location=create_source_location(node)
+            )
+        
+        # K2Node_Message: 消息调用
+        elif node.class_type in ["K2Node_Message", "/Script/BlueprintGraph.K2Node_Message"]:
+            # 从节点属性中提取消息名称
+            message_name = node.properties.get("MessageName", "UnknownMessage")
+            
+            # 解析参数
+            arguments = self._parse_function_arguments(context, node, exclude_pins={"self"})
+            
+            return FunctionCallExpression(
+                target=None,
+                function_name=str(message_name),
+                arguments=arguments,
+                source_location=create_source_location(node)
+            )
+        
+        return None
+
+    def _extract_generic_function_name(self, node: GraphNode) -> str:
+        """
+        从通用可调用节点中提取函数名
+        """
+        # 尝试从不同的属性中提取函数名
+        if "SpawnActorFromClass" in node.class_type:
+            return "SpawnActorFromClass"
+        elif "LatentAbilityCall" in node.class_type:
+            # 尝试从FunctionReference中提取
+            func_ref = node.properties.get("FunctionReference", {})
+            if isinstance(func_ref, dict):
+                member_name = func_ref.get("MemberName", "LatentAbilityCall")
+                return str(member_name)
+            return "LatentAbilityCall"
+        elif "AddDelegate" in node.class_type:
+            return "AddDelegate"
+        elif "Message" in node.class_type:
+            return "Message"
+        elif "CreateDelegate" in node.class_type:
+            return "CreateDelegate"
+        elif "RemoveDelegate" in node.class_type:
+            return "RemoveDelegate"
+        else:
+            # 从类名中提取
+            class_parts = node.class_type.split(".")
+            if class_parts:
+                return class_parts[-1].replace("K2Node_", "")
+            return "UnknownFunction"
+
     # ========================================================================
     # 核心遍历方法
     # ========================================================================
@@ -240,6 +442,10 @@ class GraphAnalyzer:
             
             # 关键修复：检查是否有 pending_continuation_pin（来自 ForEachLoop 等复杂节点）
             if context.pending_continuation_pin:
+                # 对于ForEachLoop等需要作用域管理的节点，在这里离开作用域
+                if isinstance(ast_node, LoopNode) and ast_node.loop_type == LoopType.FOR_EACH:
+                    context.scope_manager.leave_scope()
+                
                 # 使用 continuation_pin 作为下一个执行点
                 current_pin = context.pending_continuation_pin
                 # 清除 pending_continuation_pin 以避免重复使用
@@ -267,7 +473,12 @@ class GraphAnalyzer:
         if visited_path is None:
             visited_path = set()
         
-        # 优先检查 pin_ast_map：如果该引脚已有预定义的 AST 表达式（如循环变量），直接返回
+        # 第一优先级：检查 ScopeManager 中的变量（解决 UnknownExpression 的核心）
+        scope_expression = context.scope_manager.lookup_variable(pin.pin_id)
+        if scope_expression:
+            return scope_expression
+        
+        # 第二优先级：检查 pin_ast_map（向后兼容）
         if pin.pin_id in context.pin_ast_map:
             return context.pin_ast_map[pin.pin_id]
         
@@ -401,6 +612,8 @@ class GraphAnalyzer:
         # 根据节点类型进行特殊处理
         if "K2Node_VariableGet" in node.class_type:
             return self._build_property_access_expression(context, node)
+        elif "K2Node_DynamicCast" in node.class_type:
+            return self._build_cast_expression(context, node)
         elif "K2Node_CallFunction" in node.class_type:
             return self._process_call_function_as_expression(context, node)
         elif "K2Node_Literal" in node.class_type:
@@ -420,6 +633,11 @@ class GraphAnalyzer:
                     source_location=create_source_location(node)
                 )
             
+            # 专门的数据流表达式处理
+            data_flow_expression = self._try_build_data_flow_expression(context, node)
+            if data_flow_expression:
+                return data_flow_expression
+            
             # 通用处理：尝试使用处理器
             processor = node_processor_registry.get_processor(node.class_type)
             if processor:
@@ -428,8 +646,13 @@ class GraphAnalyzer:
                     return result
                 # 删除了对Statement的处理，如果处理器错误地返回了Statement，让它直接失败
             
-            # 默认返回未知表达式
-            return LiteralExpression(value="UnknownExpression", literal_type="unknown")
+            # 新架构：不再产生 UnknownExpression，使用 FallbackNode 策略
+            # 如果到达这里，说明该节点无法作为表达式解析，返回一个描述性的字面量
+            return LiteralExpression(
+                value=f"UnsupportedExpression({node.class_type})", 
+                literal_type="unsupported",
+                source_location=create_source_location(node)
+            )
     
     def _process_call_function_as_expression(self, context: AnalysisContext, node: GraphNode) -> FunctionCallExpression:
         """
@@ -501,6 +724,34 @@ class GraphAnalyzer:
                 source_location=create_source_location(node),
                 ue_type="variable_reference"
             )
+    
+    def _build_cast_expression(self, context: AnalysisContext, node: GraphNode) -> Expression:
+        """
+        从 K2Node_DynamicCast 节点构建 CastExpression
+        专门用于数据流解析，与控制流的 process_dynamic_cast 分离
+        """
+        # 1. 解析作为转换来源的输入表达式
+        # DynamicCast 节点的输入通常是 "Object" 引脚
+        object_pin = find_pin(node, "Object", "input")
+        if not object_pin:
+            # 如果找不到 "Object" 引脚，尝试其他可能的名称
+            object_pin = find_pin(node, "Target", "input")
+        
+        source_expr = self._resolve_data_expression(context, object_pin) if object_pin else LiteralExpression(
+            value="null", literal_type="null"
+        )
+        
+        # 2. 从节点属性中提取目标类型名称
+        target_type_str = node.properties.get("TargetType", "UnknownType")
+        target_type_name = parse_object_path(target_type_str) or "UnknownType"
+        
+        # 3. 构建并返回 CastExpression AST 节点
+        return CastExpression(
+            source_expression=source_expr,
+            target_type=target_type_name,
+            source_location=create_source_location(node),
+            ue_type='cast_expression'
+        )
     
     def _try_resolve_from_symbol_table(self, context: AnalysisContext, source_node: GraphNode, source_pin_id: str) -> Optional[Expression]:
         """

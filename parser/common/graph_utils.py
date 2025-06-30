@@ -78,10 +78,13 @@ def extract_pin_type(pin: GraphPin) -> str:
 def parse_object_path(path_string: str) -> Optional[str]:
     """
     从UE对象路径字符串中解析对象名称。
+    增强版本，能够处理多种UE路径格式，包括TargetType等复杂情况。
 
     示例:
         "/Script/UMG.Border'Border_0'"  ->  "Border_0"
         "/Game/BPs/UI/WBP_Foo.WBP_Foo_C'WidgetTree.CanvasPanel_0'" -> "CanvasPanel_0"
+        "Class'/Script/UMG.UserWidget'" -> "UserWidget"
+        "/Script/UMG.UserWidget" -> "UserWidget"
 
     :param path_string: UE对象路径字符串
     :return: 提取的对象名称，如果解析失败则返回None
@@ -89,16 +92,34 @@ def parse_object_path(path_string: str) -> Optional[str]:
     if not path_string:
         return None
 
-    # 使用正则提取单引号内的内容，然后切分出末尾的对象名
-    match = re.search(r"'([^']*)'", path_string)
-    if not match:
-        return None
-
-    full_path = match.group(1)
-
-    # 对路径进行分割以提取最后的对象名（处理形如 A.B 或 A:B 的情况）
-    name = full_path.rsplit('.', 1)[-1].rsplit(':', 1)[-1]
-    return name 
+    # 清理字符串，移除前后的引号和空格
+    cleaned_path = path_string.strip().strip('"').strip("'")
+    
+    # 处理 "Class'/Script/..." 格式：提取最后一个单引号内的内容
+    quote_match = re.search(r"'([^']+)'$", cleaned_path)
+    if quote_match:
+        path_to_parse = quote_match.group(1)
+    else:
+        # 如果没有单引号，直接使用整个路径
+        path_to_parse = cleaned_path
+    
+    # 从路径中提取最后的类名或对象名
+    # 处理 /Script/UMG.UserWidget 或 /Game/Path.ClassName 格式
+    if '.' in path_to_parse:
+        # 按点分割，取最后一部分
+        name = path_to_parse.rsplit('.', 1)[-1]
+    elif '/' in path_to_parse:
+        # 按斜杠分割，取最后一部分
+        name = path_to_parse.rsplit('/', 1)[-1]
+    else:
+        # 如果既没有点也没有斜杠，直接使用整个字符串
+        name = path_to_parse
+    
+    # 进一步处理冒号分割的情况（如某些宏或特殊节点）
+    if ':' in name:
+        name = name.rsplit(':', 1)[-1]
+    
+    return name if name else None 
 
 
 # ================================================================

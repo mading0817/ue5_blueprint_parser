@@ -19,7 +19,8 @@ from .common import (
     extract_event_name, extract_event_parameters, find_execution_output_pin,
     extract_variable_reference, extract_function_reference, 
     find_then_pin, find_else_pin, find_pin_by_aliases,
-    has_execution_pins, extract_macro_name, node_processor_registry
+    has_execution_pins, extract_macro_name, node_processor_registry,
+    parse_object_path
 )
 
 
@@ -302,17 +303,13 @@ def process_dynamic_cast(analyzer, context, node) -> Optional[BranchNode]:
         value="null", literal_type="null"
     )
     
-    # 提取目标类型
+    # 提取目标类型（使用增强的 parse_object_path 函数）
     target_type = node.properties.get("TargetType", "UnknownType")
-    if isinstance(target_type, str) and "'" in target_type:
-        parts = target_type.split("'")
-        if len(parts) >= 2:
-            class_path = parts[-2]
-            target_type_name = class_path.split(".")[-1]
-        else:
-            target_type_name = target_type
-    else:
-        target_type_name = "UnknownType"
+    target_type_name = parse_object_path(target_type) or "UnknownType"
+    
+    # 动态获取正确的变量名（从输出引脚获取，保留空格）
+    as_pin = next((p for p in node.pins if p.direction == "output" and p.pin_type != "exec" and p.pin_name.startswith("As ")), None)
+    cast_var_name = as_pin.pin_name if as_pin else f"As {target_type_name}"
     
     # 创建转换表达式
     cast_expr = CastExpression(
@@ -328,9 +325,6 @@ def process_dynamic_cast(analyzer, context, node) -> Optional[BranchNode]:
         false_branch=ExecutionBlock(),
         source_location=create_source_location(node)
     )
-    
-    # 在true分支中添加转换后变量的声明
-    cast_var_name = f"As{target_type_name}"
     cast_declaration = VariableDeclaration(
         variable_name=cast_var_name,
         variable_type=target_type_name,
@@ -340,6 +334,13 @@ def process_dynamic_cast(analyzer, context, node) -> Optional[BranchNode]:
         source_location=create_source_location(node)
     )
     branch_node.true_branch.statements.append(cast_declaration)
+    
+    # 将转换成功后的变量注册到符号表中
+    context.symbol_table.define(
+        name=cast_var_name,
+        symbol_type=target_type_name,
+        declaration=cast_declaration
+    )
     
     # 跟随转换成功分支
     then_pin = find_then_pin(node)
@@ -416,7 +417,7 @@ def process_array_access_node(analyzer, context, node) -> Optional[FunctionCallE
 @register_processor("K2Node_MacroInstance:ForEachLoop", "/Script/BlueprintGraph.K2Node_MacroInstance:ForEachLoop")
 def process_foreach_macro(analyzer, context, node) -> NodeProcessingResult:
     """
-    处理ForEach宏
+    处理ForEach宏 - 使用ScopeManager精确管理循环变量作用域
     """
     # 解析数组表达式
     array_pin = find_pin(node, "Array", "input")
@@ -441,10 +442,18 @@ def process_foreach_macro(analyzer, context, node) -> NodeProcessingResult:
         loop_id=loop_id
     )
     
-    # 建立引脚到AST的映射
+    # 新架构：进入新的作用域
+    context.scope_manager.enter_scope()
+    
+    # 注册循环变量到ScopeManager（解决UnknownExpression的核心）
     if element_pin:
+        context.scope_manager.register_variable(element_pin.pin_id, element_expr)
+        # 向后兼容：同时添加到pin_ast_map
         context.pin_ast_map[element_pin.pin_id] = element_expr
+    
     if index_pin:
+        context.scope_manager.register_variable(index_pin.pin_id, index_expr)
+        # 向后兼容：同时添加到pin_ast_map
         context.pin_ast_map[index_pin.pin_id] = index_expr
     
     # 创建循环变量声明
@@ -460,7 +469,7 @@ def process_foreach_macro(analyzer, context, node) -> NodeProcessingResult:
         is_loop_variable=True
     )
     
-    # 添加到符号表
+    # 添加到符号表（向后兼容）
     context.symbol_table.define("ArrayElement", "auto", item_declaration, is_loop_variable=True)
     context.symbol_table.define("ArrayIndex", "int", index_declaration, is_loop_variable=True)
     
@@ -478,6 +487,9 @@ def process_foreach_macro(analyzer, context, node) -> NodeProcessingResult:
     loop_body_pin = find_pin(node, "LoopBody", "output")
     if loop_body_pin:
         analyzer._follow_execution_flow(context, loop_body_pin, loop_node.body.statements)
+    
+    # 离开作用域（关键：这将在analyzer中处理，通过NodeProcessingResult传递信息）
+    # 注意：实际的scope_manager.leave_scope()将在analyzer中调用
     
     # 查找完成后的执行引脚
     completed_pin = find_pin(node, "Completed", "output")

@@ -2,22 +2,22 @@
 
   K2_CommitAbility()
   if (IsOwningActorPlayerControlled()):
-    // Unsupported node: /Script/GameplayAbilitiesEditor.K2Node_LatentAbilityCall (K2Node_LatentAbilityCall_2)
+    LatentAbilityCall(OwningAbility: None)
   else:
     if (cast(AvatarActor as BaseCharacter)):
-      declare AsBaseCharacter: BaseCharacter = cast(AvatarActor as BaseCharacter)
-      // Unsupported node: /Script/BlueprintGraph.K2Node_AddDelegate (K2Node_AddDelegate_0)
-      // Unsupported node: /Script/BlueprintGraph.K2Node_Message (K2Node_Message_2)
-      // Unsupported node: /Script/GameplayAbilitiesEditor.K2Node_LatentAbilityCall (K2Node_LatentAbilityCall_0)
+      declare As BaseCharacter: BaseCharacter = cast(AvatarActor as BaseCharacter)
+      cast(AvatarActor as BaseCharacter).AddDelegate(Delegate: OnMotionWarping)
+      AvatarActor.Message(Ability: self)
+      LatentAbilityCall(OwningAbility: None, TaskInstanceName: "None", MontageToPlay: UnknownMessage(Ability: self), Rate: "1.000000", StartSection: "None", bStopWhenAbilityEnds: "true", AnimRootMotionTranslationScale: "1.000000", StartTimeSeconds: "0.000000", bAllowInterruptAfterBlendOut: "false")
       if (AvatarActor.HasAuthority()):
-        for each (ArrayElement, ArrayIndex) in "UnknownExpression":
-          // Unsupported node: /Script/GameplayAbilitiesEditor.K2Node_LatentAbilityCall (K2Node_LatentAbilityCall_1)
+        for each (ArrayElement, ArrayIndex) in UnknownMessage(Ability: self):
+          LatentAbilityCall(OwningAbility: None, EventTag: ArrayElement, OptionalExternalTarget: "None", OnlyTriggerOnce: "true", OnlyMatchExact: "true")
 
 #### Event: Spawn
 
-  // Unsupported node: /Script/BlueprintGraph.K2Node_SpawnActorFromClass (K2Node_SpawnActorFromClass_0)
+  SpawnActorFromClass(Class: SummonActorsClasses.Array_Random(self: None), SpawnTransform: None, SpawnTransform_Location: SpawnArray.Array_Get(Index: "0"), SpawnTransform_Rotation: "0, 0, 0", SpawnTransform_Scale: "1.000000,1.000000,1.000000", CollisionHandlingOverride: "AlwaysSpawn", TransformScaleMethod: "MultiplyWithRoot", Owner: None, Instigator: "None")
   Macro_StandardMacros(CurrentIndex)
-  if ("UnknownExpression"):
+  if (UnknownOperator(A: Macro_IncrementInt(CurrentIndex), B: SpawnArray.Array_Length(self: None), ErrorTolerance: None)):
     // 空分支
   else:
     K2_ClearAndInvalidateTimerHandle(WorldContextObject: None, Handle: SummonTimerHandle)

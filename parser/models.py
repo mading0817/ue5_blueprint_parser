@@ -529,10 +529,43 @@ class TemporaryVariableDeclaration(Statement):
 
 
 @dataclass
+class GenericCallNode(Statement):
+    """
+    通用可调用节点 - 新增
+    用于表示通用的函数或方法调用（例如 SpawnActorFromClass, LatentAbilityCall 等）
+    支持三层梯度处理器策略中的Generic Callable Processor
+    """
+    target: Optional[Expression] = None  # 调用目标对象
+    function_name: str = ""  # 函数或方法名称
+    arguments: List[Tuple[str, Expression]] = field(default_factory=list)  # 参数列表
+    node_class: str = ""  # 原始节点类型，用于调试
+    
+    def accept(self, visitor):
+        return visitor.visit_generic_call_node(self)
+
+
+@dataclass
+class FallbackNode(Statement):
+    """
+    备用节点 - 新增
+    作为未知节点的优雅降级表示，包含原始节点的核心信息
+    确保解析过程永不中断，替代UnsupportedNode异常
+    """
+    class_name: str = ""  # 节点的类名
+    node_name: str = ""   # 节点的名称
+    properties: Dict[str, Any] = field(default_factory=dict)  # 节点的关键属性
+    pin_info: List[Tuple[str, str, str]] = field(default_factory=list)  # (pin_name, direction, pin_type)
+    
+    def accept(self, visitor):
+        return visitor.visit_fallback_node(self)
+
+
+@dataclass
 class UnsupportedNode(Statement):
     """
-    不支持的节点类型
+    不支持的节点类型 - 保留用于向后兼容
     用于表示解析器尚未支持的蓝图节点类型
+    注意：新架构中应优先使用FallbackNode
     """
     class_name: str = ""  # 节点的类名
     node_name: str = ""   # 节点的名称

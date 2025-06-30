@@ -18,7 +18,9 @@ from parser.models import (
     # 新的语义节点
     VariableDeclaration, CallbackBlock,
     # 新架构UI节点
-    WidgetNode
+    WidgetNode,
+    # 新增的AST节点
+    GenericCallNode, FallbackNode
 )
 
 
@@ -127,6 +129,14 @@ class ASTVisitor(ABC):
 
     @abstractmethod
     def visit_loop_variable_expression(self, node) -> str:
+        pass
+    
+    @abstractmethod
+    def visit_generic_call_node(self, node: GenericCallNode) -> str:
+        pass
+    
+    @abstractmethod
+    def visit_fallback_node(self, node: FallbackNode) -> str:
         pass
 
 
@@ -590,6 +600,46 @@ class MarkdownEventGraphFormatter(ASTVisitor, Formatter):
     def visit_loop_variable_expression(self, node) -> str:
         """访问循环变量表达式"""
         return node.variable_name
+    
+    def visit_generic_call_node(self, node: GenericCallNode) -> str:
+        """格式化通用可调用节点"""
+        # 构建函数调用格式：TargetObject.Function(param: Value)
+        target_str = ""
+        if node.target:
+            target_str = node.target.accept(self) + "."
+        
+        # 构建参数列表
+        args_str = ""
+        if node.arguments:
+            arg_parts = []
+            for param_name, param_expr in node.arguments:
+                param_value = param_expr.accept(self) if param_expr else "null"
+                arg_parts.append(f"{param_name}: {param_value}")
+            args_str = ", ".join(arg_parts)
+        
+        function_call = f"{target_str}{node.function_name}({args_str})"
+        self._add_line(function_call)
+        return ""
+    
+    def visit_fallback_node(self, node: FallbackNode) -> str:
+        """格式化备用节点为信息丰富的注释"""
+        # 构建注释格式：// Fallback: NodeClass(key_property=value)
+        comment_parts = [f"// Fallback: {node.class_name}"]
+        
+        if node.node_name and node.node_name != node.class_name:
+            comment_parts.append(f" ({node.node_name})")
+        
+        # 添加关键属性信息
+        if node.properties:
+            prop_parts = []
+            for key, value in node.properties.items():
+                prop_parts.append(f"{key}={value}")
+            if prop_parts:
+                comment_parts.append(f" [{', '.join(prop_parts)}]")
+        
+        comment_line = "".join(comment_parts)
+        self._add_line(comment_line)
+        return ""
 
 
 # ============================================================================

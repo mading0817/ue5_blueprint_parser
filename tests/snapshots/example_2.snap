@@ -1,8 +1,8 @@
 #### Event: WidgetControllerSet
 
   if (cast(WidgetController as AbilityButtonController)):
-    declare AsAbilityButtonController: AbilityButtonController = cast(WidgetController as AbilityButtonController)
-    As Ability Button Controller = "UnknownExpression"
+    declare As AbilityButtonController: AbilityButtonController = cast(WidgetController as AbilityButtonController)
+    As Ability Button Controller = cast(WidgetController as AbilityButtonController)
   As Ability Button Controller.SetWidgetReferences(InIconImage: Ability_Image_Icon, InNameText: Ability_Name_Tag)
 
 #### Event: "Ability_Button"."OnClicked"
