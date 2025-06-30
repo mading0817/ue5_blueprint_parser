@@ -677,4 +677,63 @@ def process_latent_ability_call(analyzer, context, node) -> Optional[ASTNode]:
             function_name=func_name,
             arguments=arguments,
             source_location=create_source_location(node)
-        ) 
+        )
+
+
+# ============================================================================
+# Widget创建处理器
+# ============================================================================
+
+@register_processor(
+    "K2Node_CreateWidget",
+    "/Script/UMGEditor.K2Node_CreateWidget"
+)
+def process_create_widget(analyzer, context, node) -> Optional[ASTNode]:
+    """
+    处理Widget创建节点
+    K2Node_CreateWidget -> FunctionCallExpression/FunctionCallNode
+    """
+    # 解析Class参数（Widget类型）
+    class_pin = find_pin(node, "Class", "input")
+    class_expr = None
+    
+    if class_pin:
+        if class_pin.default_object:
+            # 从default_object中提取类名
+            class_name = parse_object_path(class_pin.default_object)
+            if class_name:
+                class_expr = LiteralExpression(
+                    value=f'"{class_name}"',
+                    literal_type="string",
+                    source_location=create_source_location(node)
+                )
+        
+        # 如果default_object解析失败，尝试从连接的引脚获取
+        if not class_expr and class_pin.linked_to:
+            class_expr = analyzer._resolve_data_expression(context, class_pin)
+    
+    # 如果仍然没有找到类信息，使用默认值
+    if not class_expr:
+        class_expr = LiteralExpression(
+            value='"UnknownWidget"',
+            literal_type="string",
+            source_location=create_source_location(node)
+        )
+    
+    # 解析其他参数
+    arguments = [("Class", class_expr)]
+    
+    # 查找并解析OwningPlayer参数（如果存在）
+    owning_player_pin = find_pin(node, "OwningPlayer", "input")
+    if owning_player_pin and owning_player_pin.linked_to:
+        owning_player_expr = analyzer._resolve_data_expression(context, owning_player_pin)
+        arguments.append(("OwningPlayer", owning_player_expr))
+    
+    # CreateWidget主要用于产生值（Widget实例），即使有执行引脚也应该返回表达式
+    # 这样后续节点（如AddToViewport）可以正确引用其返回值
+    return FunctionCallExpression(
+        target=None,  # CreateWidget是静态函数
+        function_name="CreateWidget",
+        arguments=arguments,
+        source_location=create_source_location(node)
+    ) 

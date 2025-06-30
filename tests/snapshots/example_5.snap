@@ -1,27 +1,24 @@
-#### Event: K2_ActivateAbility
+#### Event: WidgetControllerSet
 
-  K2_CommitAbility()
-  if (IsOwningActorPlayerControlled()):
-    "CreateTargetDataUnderMouse"()
-  else:
-    if (cast(AvatarActor as BaseCharacter)):
-      declare As BaseCharacter: BaseCharacter = cast(AvatarActor as BaseCharacter)
-      cast(AvatarActor as BaseCharacter).AddDelegate(Delegate: OnMotionWarping)
-      AvatarActor.FindTaggedMontageByAbility(Ability: self)
-      "CreatePlayMontageAndWaitProxy"(TaskInstanceName: "None", MontageToPlay: "UnsupportedExpression(/Script/BlueprintGraph.K2Node_Message)", Rate: "1.000000", StartSection: "None", bStopWhenAbilityEnds: "true", AnimRootMotionTranslationScale: "1.000000", StartTimeSeconds: "0.000000", bAllowInterruptAfterBlendOut: "false")
-      if (AvatarActor.HasAuthority()):
-        for each (ArrayElement, ArrayIndex) in "UnsupportedExpression(/Script/BlueprintGraph.K2Node_Message)":
-          "WaitGameplayEvent"(EventTag: ArrayElement, OptionalExternalTarget: "None", OnlyTriggerOnce: "true", OnlyMatchExact: "true")
+  if (cast(WidgetController as OverlayWidgetController)):
+    declare As OverlayWidgetController: OverlayWidgetController = cast(WidgetController as OverlayWidgetController)
+    OverlayWidgetController = cast(WidgetController as OverlayWidgetController)
+  WBP_PlayerInfoPanelWidget.SetWidgetController(InWidgetController: OverlayWidgetController.PlayerInfoPanelController)
+  OverlayWidgetController.AddDelegate(Delegate: OnPlayerLevelUp)
 
-#### Event: Spawn
+#### Event: Construct
 
-  SpawnActorFromClass(Class: SummonActorsClasses.Array_Random(self: None), SpawnTransform: None, SpawnTransform_Location: SpawnArray.Array_Get(Index: "0"), SpawnTransform_Rotation: "0, 0, 0", SpawnTransform_Scale: "1.000000,1.000000,1.000000", CollisionHandlingOverride: "AlwaysSpawn", TransformScaleMethod: "MultiplyWithRoot", Owner: None, Instigator: "None")
-  Macro_StandardMacros(CurrentIndex)
-  if (UnknownOperator(A: Macro_IncrementInt(CurrentIndex), B: SpawnArray.Array_Length(self: None), ErrorTolerance: None)):
-    // 空分支
-  else:
-    K2_ClearAndInvalidateTimerHandle(WorldContextObject: None, Handle: SummonTimerHandle)
+  OnAttributesMenuButtonClicked_Event += WBP_AttributesMenuButton.Button
+  WBP_AbilityMenuButton.Button.AddDelegate(Delegate: OnAbilityMenuButtonClicked_Event)
 
-#### Event: OnMotionWarping(TargetLocation: struct)
+#### Event: OnAttributesMenuButtonClicked_Event
 
-  TargetLocation = OnMotionWarping
+  AttributesMenuAnchor.ToggleOpen(bFocusOnOpen: "true")
+
+#### Event: OnPlayerLevelUp
+
+  CreateWidget(Class: ""WBP_LevelUpMessage_C"").AddToViewport(ZOrder: "0")
+
+#### Event: OnAbilityMenuButtonClicked_Event
+
+  AbilityMenuAnchor.ToggleOpen(bFocusOnOpen: "true")

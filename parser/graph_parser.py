@@ -160,13 +160,20 @@ class GraphBuilder:
             raw_value = default_match.group(1)
             default_value = raw_value.replace('\\"', '"').replace('\\\\', '\\')
         
+        # 提取默认对象路径（用于K2Node_CreateWidget等节点）
+        default_object = None
+        default_object_match = re.search(r'DefaultObject="([^"]*)"', prop_value)
+        if default_object_match:
+            default_object = default_object_match.group(1)
+        
         # 创建引脚对象
         pin = GraphPin(
             pin_id=pin_id,
             pin_name=pin_name,
             direction=direction,
             pin_type=pin_type,
-            default_value=default_value
+            default_value=default_value,
+            default_object=default_object
         )
         
         # 解析连接信息
@@ -219,13 +226,17 @@ class GraphBuilder:
         # 获取默认值
         default_value = pin_obj.properties.get("DefaultValue")
         
+        # 获取默认对象路径
+        default_object = pin_obj.properties.get("DefaultObject")
+        
         # 创建引脚对象
         pin = GraphPin(
             pin_id=pin_id,
             pin_name=pin_name,
             direction=direction,
             pin_type=pin_type,
-            default_value=default_value
+            default_value=default_value,
+            default_object=default_object
         )
         
         # 解析连接信息

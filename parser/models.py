@@ -50,6 +50,7 @@ class GraphPin:
     pin_type: str   # 引脚的数据类型
     linked_to: List[Dict[str, str]] = field(default_factory=list)  # 连接到的其他引脚信息 [{"node_guid": "", "pin_id": ""}]
     default_value: Optional[str] = None  # 引脚的默认值
+    default_object: Optional[str] = None  # 引脚的默认对象路径（用于K2Node_CreateWidget等节点）
 
 
 @dataclass
