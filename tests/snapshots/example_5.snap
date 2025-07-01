@@ -1,7 +1,7 @@
 #### Event: WidgetControllerSet
 
   if (cast(WidgetController as OverlayWidgetController)):
-    declare As OverlayWidgetController: OverlayWidgetController = cast(WidgetController as OverlayWidgetController)
+    declare As OverlayWidgetController = cast(WidgetController as OverlayWidgetController)
     OverlayWidgetController = cast(WidgetController as OverlayWidgetController)
   WBP_PlayerInfoPanelWidget.SetWidgetController(InWidgetController: OverlayWidgetController.PlayerInfoPanelController)
   OverlayWidgetController.AddDelegate(Delegate: OnPlayerLevelUp)

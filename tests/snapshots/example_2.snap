@@ -1,7 +1,7 @@
 #### Event: WidgetControllerSet
 
   if (cast(WidgetController as AbilityButtonController)):
-    declare As AbilityButtonController: AbilityButtonController = cast(WidgetController as AbilityButtonController)
+    declare As AbilityButtonController = cast(WidgetController as AbilityButtonController)
     As Ability Button Controller = cast(WidgetController as AbilityButtonController)
   As Ability Button Controller.SetWidgetReferences(InIconImage: Ability_Image_Icon, InNameText: Ability_Name_Tag)
 

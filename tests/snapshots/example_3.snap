@@ -1,4 +1,4 @@
-#### Event: PreConstruct(IsDesignTime: bool)
+#### Event: PreConstruct(IsDesignTime)
 
   OnClicked_Event += WBP_SkillCategoryButtons.WBP_Equipped_Button.Button
   OnClicked_Event_0 += WBP_SkillCategoryButtons.WBP_All_Button.Button
@@ -19,6 +19,6 @@
 #### Event: WidgetControllerSet
 
   if (cast(WidgetController as AbilitiesMenuController)):
-    declare As AbilitiesMenuController: AbilitiesMenuController = cast(WidgetController as AbilitiesMenuController)
+    declare As AbilitiesMenuController = cast(WidgetController as AbilitiesMenuController)
     As Abilities Menu Controller = cast(WidgetController as AbilitiesMenuController)
   As Abilities Menu Controller.BindChildWidgets(InCoreAreaWidget: WBP_AbilitiesCoreArea, InEquippedPanelWidget: WBP_AbilitiesEquippedPanel)

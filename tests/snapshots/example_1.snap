@@ -1,7 +1,7 @@
 #### Event: WidgetControllerSet
 
   if (cast(WidgetController as AbilitiesEquippedPanelController)):
-    declare As AbilitiesEquippedPanelController: AbilitiesEquippedPanelController = cast(WidgetController as AbilitiesEquippedPanelController)
+    declare As AbilitiesEquippedPanelController = cast(WidgetController as AbilitiesEquippedPanelController)
     As Abilities Equipped Panel Controller = cast(WidgetController as AbilitiesEquippedPanelController)
   WBP_Ability_Button_with_Name_1.SetWidgetController(InWidgetController: As Abilities Equipped Panel Controller.SlotController1)
   WBP_Ability_Button_with_Name_2.SetWidgetController(InWidgetController: As Abilities Equipped Panel Controller.SlotController2)
