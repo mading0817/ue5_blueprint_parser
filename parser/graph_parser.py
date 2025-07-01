@@ -3,6 +3,7 @@ from typing import List, Dict, Optional
 from .models import GraphPin, GraphNode, BlueprintGraph, RawObject
 from .common.object_parser import BlueprintObjectParser
 from .common.builder_utils import collect_all_raw_objects
+import uuid
 
 # 生成唯一 GUID
 _defalt_guid_counter = 0

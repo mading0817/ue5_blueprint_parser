@@ -4,6 +4,7 @@
 """
 
 from typing import Dict, Callable, List, Any
+from functools import wraps
 
 
 class ProcessorRegistry:

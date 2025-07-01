@@ -6,11 +6,11 @@
 
 #### Event: OnClicked_Event
 
-  Ability_Core_Aera_Switcher.SetActiveWidgetIndex(Index: "1")
+  Ability_Core_Area_Switcher.SetActiveWidgetIndex(Index: "1")
 
 #### Event: OnClicked_Event_0
 
-  Ability_Core_Aera_Switcher.SetActiveWidgetIndex(Index: "0")
+  Ability_Core_Area_Switcher.SetActiveWidgetIndex(Index: "0")
 
 #### Event: OnClicked_Event_1
 

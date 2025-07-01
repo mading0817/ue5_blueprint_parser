@@ -31,8 +31,7 @@ from .common import (
     find_pin, create_source_location, get_pin_default_value, extract_pin_type,
     extract_variable_reference, extract_function_reference, extract_event_name,
     should_create_temp_variable_for_node, generate_temp_variable_name,
-    has_execution_pins, node_processor_registry, extract_macro_name, parse_object_path,
-    create_null_literal
+    has_execution_pins, node_processor_registry, extract_macro_name, parse_object_path
 )
 
 # 导入处理器模块以触发装饰器注册
@@ -240,7 +239,7 @@ class GraphAnalyzer:
                 if pin.direction == "input" and pin.linked_to:
                     return self._resolve_data_expression(context, pin)
             # 如果没有输入连接，返回null
-            return create_null_literal()
+            return LiteralExpression(value="null", literal_type="null")
         
         # K2Node_GetArrayItem: 数组元素访问
         elif node.class_type in ["K2Node_GetArrayItem", "/Script/BlueprintGraph.K2Node_GetArrayItem"]:
@@ -372,7 +371,7 @@ class GraphAnalyzer:
         实现数据流递归解析，支持循环检测和类型信息提取
         """
         if not pin:
-            return create_null_literal()
+            return LiteralExpression(value="null", literal_type="null")
         
         # 初始化访问路径（用于循环检测）
         if visited_path is None:
@@ -419,7 +418,7 @@ class GraphAnalyzer:
             source_node = self._find_node_by_pin_id(context, source_pin_id)
         
         if not source_node:
-            return create_null_literal()
+            return LiteralExpression(value="null", literal_type="null")
         
         # 循环检测
         source_key = f"{source_node.node_guid}:{source_pin_id}"
