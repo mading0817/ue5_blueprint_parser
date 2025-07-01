@@ -1,4 +1,4 @@
-from flask import Flask, request, render_template, jsonify
+from flask import Flask, request, render_template
 from parser.graph_parser import parse_blueprint_graph
 from parser.formatters import MarkdownEventGraphFormatter, WidgetTreeFormatter, ConciseStrategy, VerboseStrategy
 from parser.widget_parser import parse as parse_widget_ast  # 替换旧的 blueprint_parser 引入

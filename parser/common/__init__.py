@@ -27,6 +27,9 @@ from .object_parser import BlueprintObjectParser
 # 构建器工具
 from .builder_utils import collect_all_raw_objects
 
+# AST工具
+from .ast_utils import create_null_literal, create_literal_with_location
+
 # 为了向后兼容，保留原有的导入方式
 __all__ = [
     # 基础工具函数
@@ -46,5 +49,7 @@ __all__ = [
     # 对象解析器
     'BlueprintObjectParser',
     # 构建器工具
-    'collect_all_raw_objects'
+    'collect_all_raw_objects',
+    # AST工具
+    'create_null_literal', 'create_literal_with_location'
 ] 
