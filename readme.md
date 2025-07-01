@@ -44,12 +44,15 @@ The parser operates through distinct stages, primarily focusing on **EventGraph 
     *   **Elimination of `UnknownExpression`**: Nodes that output data (e.g., `ForEachLoop`'s Array Element/Index) explicitly register these outputs into the current scope via the `ScopeManager`. Downstream nodes can then perform a reliable lookup. This guarantees accurate data flow resolution, even in complex nested structures, **permanently eradicating "UnknownExpression" errors**.
 
 ### 3. Stage Three: AST Rendering & UI Tree Formatting
-- **Module**: `parser/formatters.py`
-- **Responsibility**: This stage acts as a "printer" that traverses the provided data structure (either an AST or a Widget tree) and renders it into a human-readable format (e.g., Markdown pseudo-code). It has been updated to correctly interpret and display new AST nodes like `GenericCallNode` and `FallbackNode`.
+- **Module**: `parser/formatters/` (Package)
+- **Responsibility**: This stage acts as a "printer" that traverses the provided data structure (either an AST or a Widget tree) and renders it into a human-readable format. This has been refactored into a modular package:
+    - `widget_formatter.py`: Handles the recursive, hierarchical rendering of the UI Widget tree, including cleaning up property values like `NSLOCTEXT` into readable text.
+    - `graph_formatter.py`: Handles the rendering of the logic AST into Markdown pseudo-code.
+    - `base.py`: Contains the abstract base classes for formatters and formatting strategies.
 
 ### 4. UI Widget Parsing Pipeline (Parallel Path for User Interfaces)
-- **Module**: `parser/widget_parser.py` (previously `parser/blueprint_parser.py`)
-- **Responsibility**: This dedicated pipeline parses raw UI blueprint text, resolves parent-child relationships, and constructs a clean `WidgetNode` tree, which is then passed to Stage Three for formatting.
+- **Module**: `parser/widget_parser.py`
+- **Responsibility**: This dedicated pipeline parses raw UI blueprint text, resolves parent-child relationships using `Slot` objects, and constructs a clean `WidgetNode` tree. The `parser/common/graph_utils.py` module now correctly parses object paths to ensure these relationships are built with high fidelity. The resulting tree is then passed to the `WidgetTreeFormatter` for hierarchical rendering.
 
 ### 5. Common Utilities & Shared Components (`parser/common/` and `parser/scope_manager.py`)
 - **Responsibility**: This directory houses high-cohesion, stateless utility functions and shared components. The `parser/scope_manager.py` module specifically handles lexical scope management, promoting better code organization and reusability.

@@ -92,16 +92,25 @@ def parse_object_path(path_string: str) -> Optional[str]:
     if not path_string:
         return None
 
-    # 清理字符串，移除前后的引号和空格
-    cleaned_path = path_string.strip().strip('"').strip("'")
+    # 清理字符串，移除前后的双引号和空格，但保留单引号
+    cleaned_path = path_string.strip().strip('"').strip()
     
-    # 处理 "Class'/Script/..." 格式：提取最后一个单引号内的内容
-    quote_match = re.search(r"'([^']+)'$", cleaned_path)
+    # 处理 "/Script/UMG.Border'Border_0'" 格式：提取单引号内的内容
+    quote_match = re.search(r"'([^']+)'?$", cleaned_path)
     if quote_match:
-        path_to_parse = quote_match.group(1)
-    else:
-        # 如果没有单引号，直接使用整个路径
-        path_to_parse = cleaned_path
+        # 如果找到单引号，提取单引号内的内容作为对象名
+        object_name = quote_match.group(1)
+        
+        # 处理可能的点分隔路径，如 "WidgetTree.CanvasPanel_0"
+        if '.' in object_name:
+            # 取最后一个点后的部分
+            return object_name.rsplit('.', 1)[-1]
+        else:
+            # 直接返回单引号内的内容
+            return object_name
+    
+    # 如果没有单引号，按原来的逻辑处理
+    path_to_parse = cleaned_path
     
     # 从路径中提取最后的类名或对象名
     # 处理 /Script/UMG.UserWidget 或 /Game/Path.ClassName 格式

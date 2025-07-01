@@ -1,66 +1,66 @@
-# WBP_AttributesMenu Hierarchy
+# Widget Hierarchy
 
-- **SizeBox_Root** (SizeBox)
-- **Border_0** (Border)
-- **Overlay_Box** (Overlay)
-- **Image_Background** (Image)
-- **MainMenuBox** (VerticalBox)
-- **TextBlock_128** (TextBlock)
-    - Text: `NSLOCTEXT("[176EAA45DB63CAB57B675F8B22A99752]",...`
-- **AttributesBorder** (Border)
-- **AttributeAreas** (HorizontalBox)
-- **PrimaryMain** (VerticalBox)
-- **PrimaryTitle** (TextBlock)
-    - Text: `NSLOCTEXT("[176EAA45DB63CAB57B675F8B22A99752]",...`
-- **PrimaryRows** (VerticalBox)
-- **WBP_Primary_1** (WBP_AttributeValueRowButton_C)
-- **WBP_Primary_2** (WBP_AttributeValueRowButton_C)
-- **WBP_Primary_3** (WBP_AttributeValueRowButton_C)
-- **WBP_Primary_4** (WBP_AttributeValueRowButton_C)
-- **WBP_Primary_5** (WBP_AttributeValueRowButton_C)
-- **Border_2** (Border)
-- **Spacer_162** (Spacer)
-    - Size: `(X=5.000000,Y=1.000000)`
-- **SecondaryMain** (VerticalBox)
-- **SecondaryTitle** (TextBlock)
-    - Text: `NSLOCTEXT("[176EAA45DB63CAB57B675F8B22A99752]",...`
-- **SecondaryRows** (HorizontalBox)
-- **LeftArea** (VerticalBox)
-- **WBP_Secondary_1** (WBP_AttributeValueRow_C)
-- **WBP_Secondary_2** (WBP_AttributeValueRow_C)
-- **WBP_Secondary_3** (WBP_AttributeValueRow_C)
-- **WBP_Secondary_4** (WBP_AttributeValueRow_C)
-- **WBP_Secondary_5** (WBP_AttributeValueRow_C)
-- **WBP_Secondary_6** (WBP_AttributeValueRow_C)
-- **WBP_Secondary_7** (WBP_AttributeValueRow_C)
-- **WBP_Secondary_8** (WBP_AttributeValueRow_C)
-- **RightArea** (VerticalBox)
-- **WBP_Secondary_9** (WBP_AttributeValueRow_C)
-- **WBP_Secondary_10** (WBP_AttributeValueRow_C)
-- **WBP_Secondary_11** (WBP_AttributeValueRow_C)
-- **WBP_Secondary_12** (WBP_AttributeValueRow_C)
-- **WBP_Secondary_13** (WBP_AttributeValueRow_C)
-- **WBP_Secondary_14** (WBP_AttributeValueRow_C)
-- **WBP_Secondary_15** (WBP_AttributeValueRow_C)
-- **WBP_Secondary_16** (WBP_AttributeValueRow_C)
-- **AvailablePoint** (HorizontalBox)
-- **AvailablePointsText** (TextBlock)
-    - Text: `NSLOCTEXT("[176EAA45DB63CAB57B675F8B22A99752]",...`
-- **AvailablePointsValue** (TextBlock)
-    - Text: `NSLOCTEXT("[176EAA45DB63CAB57B675F8B22A99752]",...`
-- **Buttons** (HorizontalBox)
-- **WBP_ResetButton** (WBP_AddButton_C)
-    - SizeBoxWidth: `50.000000`
-    - SizeBoxHeight: `50.000000`
-    - ButtonText: `NSLOCTEXT("[176EAA45DB63CAB57B675F8B22A99752]",...`
-    - TextBorderPadding: `(Top=3.500000)`
-- **Spacer_227** (Spacer)
-    - Size: `(X=10.000000,Y=1.000000)`
-- **WBP_SummitButton** (WBP_AddButton_C)
-    - SizeBoxWidth: `50.000000`
-    - SizeBoxHeight: `50.000000`
-    - ButtonText: `NSLOCTEXT("[176EAA45DB63CAB57B675F8B22A99752]",...`
-    - TextBorderPadding: `(Left=0.000000,Top=6.000000,Bottom=0.000000)`
-- **Spacer** (Spacer)
-    - Size: `(X=10.000000,Y=1.000000)`
-- **CloseButton** (WBP_CloseButton_C)
+- **SizeBox_Root** (/Script/UMG.SizeBox)
+  - **Border_0** (/Script/UMG.Border)
+    - **Overlay_Box** (/Script/UMG.Overlay)
+      - **Image_Background** (/Script/UMG.Image)
+      - **MainMenuBox** (/Script/UMG.VerticalBox)
+        - **AttributesBorder** (/Script/UMG.Border)
+          - **AttributeAreas** (/Script/UMG.HorizontalBox)
+            - **Border_2** (/Script/UMG.Border)
+              - **Spacer_162** (/Script/UMG.Spacer)
+                - Size: `(X=5.000000,Y=1.000000)`
+            - **PrimaryMain** (/Script/UMG.VerticalBox)
+              - **PrimaryTitle** (/Script/UMG.TextBlock)
+                - Text: `Primary`
+              - **PrimaryRows** (/Script/UMG.VerticalBox)
+                - **WBP_Primary_1** (/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRowButton.WBP_AttributeValueRowButton_C)
+                - **WBP_Primary_2** (/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRowButton.WBP_AttributeValueRowButton_C)
+                - **WBP_Primary_3** (/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRowButton.WBP_AttributeValueRowButton_C)
+                - **WBP_Primary_4** (/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRowButton.WBP_AttributeValueRowButton_C)
+                - **WBP_Primary_5** (/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRowButton.WBP_AttributeValueRowButton_C)
+            - **SecondaryMain** (/Script/UMG.VerticalBox)
+              - **SecondaryRows** (/Script/UMG.HorizontalBox)
+                - **LeftArea** (/Script/UMG.VerticalBox)
+                  - **WBP_Secondary_1** (/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C)
+                  - **WBP_Secondary_2** (/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C)
+                  - **WBP_Secondary_3** (/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C)
+                  - **WBP_Secondary_4** (/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C)
+                  - **WBP_Secondary_5** (/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C)
+                  - **WBP_Secondary_6** (/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C)
+                  - **WBP_Secondary_7** (/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C)
+                  - **WBP_Secondary_8** (/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C)
+                - **RightArea** (/Script/UMG.VerticalBox)
+                  - **WBP_Secondary_9** (/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C)
+                  - **WBP_Secondary_10** (/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C)
+                  - **WBP_Secondary_11** (/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C)
+                  - **WBP_Secondary_12** (/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C)
+                  - **WBP_Secondary_13** (/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C)
+                  - **WBP_Secondary_14** (/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C)
+                  - **WBP_Secondary_15** (/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C)
+                  - **WBP_Secondary_16** (/Game/BPs/UI/AttributesMenu/WBP_AttributeValueRow.WBP_AttributeValueRow_C)
+              - **SecondaryTitle** (/Script/UMG.TextBlock)
+                - Text: `Secondary`
+        - **AvailablePoint** (/Script/UMG.HorizontalBox)
+          - **AvailablePointsText** (/Script/UMG.TextBlock)
+            - Text: `Available Points:`
+          - **AvailablePointsValue** (/Script/UMG.TextBlock)
+            - Text: `99`
+          - **Buttons** (/Script/UMG.HorizontalBox)
+            - **WBP_ResetButton** (/Game/BPs/UI/Buttons/WBP_AddButton.WBP_AddButton_C)
+              - SizeBoxWidth: `50.000000`
+              - SizeBoxHeight: `50.000000`
+              - ButtonText: `×`
+              - TextBorderPadding: `(Top=3.500000)`
+            - **Spacer_227** (/Script/UMG.Spacer)
+              - Size: `(X=10.000000,Y=1.000000)`
+            - **WBP_SummitButton** (/Game/BPs/UI/Buttons/WBP_AddButton.WBP_AddButton_C)
+              - SizeBoxWidth: `50.000000`
+              - SizeBoxHeight: `50.000000`
+              - ButtonText: `√`
+              - TextBorderPadding: `(Left=0.000000,Top=6.000000,Bottom=0.000000)`
+          - **Spacer** (/Script/UMG.Spacer)
+            - Size: `(X=10.000000,Y=1.000000)`
+        - **TextBlock_128** (/Script/UMG.TextBlock)
+          - Text: `Attributes`
+      - **CloseButton** (/Game/BPs/UI/Buttons/WBP_CloseButton.WBP_CloseButton_C)
