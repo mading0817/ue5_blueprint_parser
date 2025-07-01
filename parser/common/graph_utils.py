@@ -324,28 +324,7 @@ def extract_event_parameters(node: GraphNode) -> List[Tuple[str, str]]:
 # 参数解析工具函数
 # ================================================================
 
-def parse_function_arguments(node: GraphNode, exclude_pins: Set[str] = None) -> List[Tuple[str, Any]]:
-    """
-    解析函数参数的基础信息（不包含表达式解析）
-    排除执行引脚和指定的特殊引脚
-    
-    :param node: 图节点
-    :param exclude_pins: 要排除的引脚名称集合，如果为None则使用默认排除列表
-    :return: 参数信息列表 [(参数名, 默认值), ...]
-    """
-    if exclude_pins is None:
-        exclude_pins = {"self"}  # 默认只排除self引脚
-    
-    arguments = []
-    
-    for pin in node.pins:
-        if (pin.direction == "input" and 
-            pin.pin_type not in ["exec"] and
-            pin.pin_name not in exclude_pins):
-            default_value = get_pin_default_value(pin)
-            arguments.append((pin.pin_name, default_value))
-    
-    return arguments
+
 
 
 def should_create_temp_variable_for_node(source_node: GraphNode) -> bool:
@@ -400,32 +379,7 @@ def has_execution_pins(node: GraphNode) -> bool:
     return any(pin.pin_type == "exec" for pin in node.pins)
 
 
-def get_output_pins(node: GraphNode, exclude_exec: bool = True) -> List[GraphPin]:
-    """
-    获取节点的输出引脚列表
-    
-    :param node: 图节点
-    :param exclude_exec: 是否排除执行引脚
-    :return: 输出引脚列表
-    """
-    pins = [pin for pin in node.pins if pin.direction == "output"]
-    if exclude_exec:
-        pins = [pin for pin in pins if pin.pin_type != "exec"]
-    return pins
 
-
-def get_input_pins(node: GraphNode, exclude_exec: bool = True) -> List[GraphPin]:
-    """
-    获取节点的输入引脚列表
-    
-    :param node: 图节点
-    :param exclude_exec: 是否排除执行引脚
-    :return: 输入引脚列表
-    """
-    pins = [pin for pin in node.pins if pin.direction == "input"]
-    if exclude_exec:
-        pins = [pin for pin in pins if pin.pin_type != "exec"]
-    return pins
 
 
 # ================================================================

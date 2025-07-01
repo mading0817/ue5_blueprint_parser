@@ -4,20 +4,20 @@
     As Overlay Widget Controller = cast(WidgetController as OverlayWidgetController)
     OverlayWidgetController = cast(WidgetController as OverlayWidgetController)
   WBP_PlayerInfoPanelWidget.SetWidgetController(InWidgetController: OverlayWidgetController.PlayerInfoPanelController)
-  OverlayWidgetController.AddDelegate(Delegate: OnPlayerLevelUp)
-
-#### Event: Construct
-
-  OnAttributesMenuButtonClicked_Event += WBP_AttributesMenuButton.Button
-  WBP_AbilityMenuButton.Button.AddDelegate(Delegate: OnAbilityMenuButtonClicked_Event)
-
-#### Event: OnAttributesMenuButtonClicked_Event
-
-  AttributesMenuAnchor.ToggleOpen(bFocusOnOpen: "true")
+  // Fallback: /Script/BlueprintGraph.K2Node_AddDelegate (K2Node_AddDelegate_1)
 
 #### Event: OnPlayerLevelUp
 
   CreateWidget(Class: ""WBP_LevelUpMessage_C"").AddToViewport(ZOrder: "0")
+
+#### Event: Construct
+
+  OnAttributesMenuButtonClicked_Event += WBP_AttributesMenuButton.Button
+  // Fallback: /Script/BlueprintGraph.K2Node_AddDelegate (K2Node_AddDelegate_0)
+
+#### Event: OnAttributesMenuButtonClicked_Event
+
+  AttributesMenuAnchor.ToggleOpen(bFocusOnOpen: "true")
 
 #### Event: OnAbilityMenuButtonClicked_Event
 

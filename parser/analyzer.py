@@ -30,7 +30,7 @@ from .scope_manager import ScopeManager
 from .common import (
     find_pin, create_source_location, get_pin_default_value, extract_pin_type,
     extract_variable_reference, extract_function_reference, extract_event_name,
-    parse_function_arguments, should_create_temp_variable_for_node, generate_temp_variable_name,
+    should_create_temp_variable_for_node, generate_temp_variable_name,
     has_execution_pins, node_processor_registry, extract_macro_name, parse_object_path
 )
 
@@ -105,7 +105,7 @@ class GraphAnalyzer:
         """
         分析蓝图图并返回AST节点列表
         主入口方法 - 使用统一解析模型架构
-        重构：优先识别事件入口节点，确保事件逻辑完整解析
+        简化版本：依赖 GraphBuilder 提供的完整入口节点列表
         """
         # Pass 1: 符号与依赖分析
         pin_usage_counts = self._perform_symbol_analysis(graph)
@@ -117,24 +117,9 @@ class GraphAnalyzer:
             pin_usage_counts=pin_usage_counts
         )
         
-        # 重构：首先遍历整个图，找出所有事件入口节点
-        event_entry_nodes = []
-        for node in graph.nodes.values():
-            if node.class_type in ["K2Node_Event", "K2Node_CustomEvent", "K2Node_ComponentBoundEvent",
-                                   "/Script/BlueprintGraph.K2Node_Event", 
-                                   "/Script/BlueprintGraph.K2Node_CustomEvent",
-                                   "/Script/BlueprintGraph.K2Node_ComponentBoundEvent"]:
-                event_entry_nodes.append(node)
-        
-        # 处理所有事件入口节点，确保每个事件的完整逻辑都被解析
+        # 简化的入口点处理：直接使用 GraphBuilder 提供的 entry_nodes
+        # GraphBuilder 已经负责识别所有事件节点和其他入口点
         ast_nodes = []
-        for event_node in event_entry_nodes:
-            if event_node.node_guid not in context.visited_nodes:
-                ast_node = self._process_node(context, event_node)
-                if ast_node:
-                    ast_nodes.append(ast_node)
-        
-        # 处理其他剩余的入口节点（如果有的话）
         for entry_node in graph.entry_nodes:
             if entry_node.node_guid not in context.visited_nodes:
                 ast_node = self._process_node(context, entry_node)
@@ -202,51 +187,12 @@ class GraphAnalyzer:
                 return result.node
             return result
         
-        # 阶段三：通用可调用处理器（Generic Callable Processor）
-        generic_callable_result = self._try_generic_callable_processor(context, node)
-        if generic_callable_result:
-            return generic_callable_result
+
         
-        # 阶段四：备用处理器（Fallback Processor）- 确保永不失败
+        # 阶段三：备用处理器（Fallback Processor）- 确保永不失败
         return self._create_fallback_node(context, node)
     
-    def _try_generic_callable_processor(self, context: AnalysisContext, node: GraphNode) -> Optional[GenericCallNode]:
-        """
-        通用可调用处理器 - 三层梯度处理器策略的第三层
-        处理大部分"函数调用类"节点，如 SpawnActorFromClass, LatentAbilityCall 等
-        """
-        # 定义通用可调用节点类型列表
-        generic_callable_types = {
-            "K2Node_SpawnActorFromClass", "/Script/BlueprintGraph.K2Node_SpawnActorFromClass",
-            "K2Node_LatentAbilityCall", "/Script/GameplayAbilitiesEditor.K2Node_LatentAbilityCall",
-            "K2Node_AddDelegate", "/Script/BlueprintGraph.K2Node_AddDelegate",
-            "K2Node_Message", "/Script/BlueprintGraph.K2Node_Message",
-            "K2Node_CreateDelegate", "/Script/BlueprintGraph.K2Node_CreateDelegate",
-            "K2Node_RemoveDelegate", "/Script/BlueprintGraph.K2Node_RemoveDelegate"
-        }
-        
-        if node.class_type not in generic_callable_types:
-            return None
-        
-        # 提取函数名（从节点类型或属性中）
-        function_name = self._extract_generic_function_name(node)
-        
-        # 查找目标对象（如果有self引脚）
-        target_expr = None
-        self_pin = find_pin(node, "self", "input")
-        if self_pin and self_pin.linked_to:
-            target_expr = self._resolve_data_expression(context, self_pin)
-        
-        # 解析参数
-        arguments = self._parse_function_arguments(context, node, exclude_pins={"self"})
-        
-        return GenericCallNode(
-            target=target_expr,
-            function_name=function_name,
-            arguments=arguments,
-            node_class=node.class_type,
-            source_location=create_source_location(node)
-        )
+
     
     def _create_fallback_node(self, context: AnalysisContext, node: GraphNode) -> FallbackNode:
         """
@@ -363,35 +309,7 @@ class GraphAnalyzer:
         
         return None
 
-    def _extract_generic_function_name(self, node: GraphNode) -> str:
-        """
-        从通用可调用节点中提取函数名
-        强化版本：优先使用 FunctionReference 作为单一真实来源
-        """
-        # 第一优先级：使用 FunctionReference 作为单一真实来源
-        function_name = extract_function_reference(node)
-        if function_name and function_name != "UnknownFunction":
-            return function_name
-        
-        # 第二优先级：基于节点类型的回退逻辑
-        if "SpawnActorFromClass" in node.class_type:
-            return "SpawnActorFromClass"
-        elif "LatentAbilityCall" in node.class_type:
-            return "LatentAbilityCall"
-        elif "AddDelegate" in node.class_type:
-            return "AddDelegate"
-        elif "Message" in node.class_type:
-            return "Message"
-        elif "CreateDelegate" in node.class_type:
-            return "CreateDelegate"
-        elif "RemoveDelegate" in node.class_type:
-            return "RemoveDelegate"
-        else:
-            # 从类名中提取
-            class_parts = node.class_type.split(".")
-            if class_parts:
-                return class_parts[-1].replace("K2Node_", "")
-            return "UnknownFunction"
+
 
     # ========================================================================
     # 核心遍历方法

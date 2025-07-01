@@ -3,37 +3,6 @@
   As Attributes Menu Controller.HandleCloseButtonClicked()
   ParentMenuAnchor.Close()
 
-#### Event: WidgetControllerSet
-
-  if (cast(WidgetController as AttributesMenuController)):
-    As Attributes Menu Controller = cast(WidgetController as AttributesMenuController)
-  for each (ArrayElement, ArrayIndex) in PrimaryRows.GetAllChildren():
-    if (cast(ArrayElement as PlayerUserWidget)):
-      As Player User Widget = cast(ArrayElement as PlayerUserWidget)
-      As Attributes Menu Controller.GetPrimaryRowController(Index: ArrayElement)
-      cast(ArrayElement as PlayerUserWidget).SetWidgetController(InWidgetController: As Attributes Menu Controller.GetPrimaryRowController(Index: ArrayElement))
-  for each (ArrayElement, ArrayIndex) in LeftArea.GetAllChildren():
-    if (cast(ArrayElement as PlayerUserWidget)):
-      As Player User Widget = cast(ArrayElement as PlayerUserWidget)
-      SecondaryRows.Array_AddUnique(self: None, NewItem: cast(ArrayElement as PlayerUserWidget))
-  for each (ArrayElement, ArrayIndex) in RightArea.GetAllChildren():
-    if (cast(ArrayElement as PlayerUserWidget)):
-      As Player User Widget = cast(ArrayElement as PlayerUserWidget)
-      SecondaryRows.Array_AddUnique(self: None, NewItem: cast(ArrayElement as PlayerUserWidget))
-  for each (ArrayElement, ArrayIndex) in SecondaryRows:
-    As Attributes Menu Controller.GetSecondaryRowController(Index: ArrayElement)
-    ArrayElement.SetWidgetController(InWidgetController: As Attributes Menu Controller.GetSecondaryRowController(Index: ArrayElement))
-  As Attributes Menu Controller.SetAvailablePointsText(InTextBlock: AvailablePointsValue)
-  As Attributes Menu Controller.UpdateUI()
-
-#### Event: OnClicked_Event
-
-  As Attributes Menu Controller.HandleResetButtonClicked()
-
-#### Event: OnClicked_Event_0
-
-  As Attributes Menu Controller.HandleSubmitButtonClicked()
-
 #### Event: OnMenuOpenChanged_Event(bIsOpen)
 
   if (OnMenuOpenChanged_Event):
@@ -47,3 +16,34 @@
   OnMenuOpenChanged_Event += ParentMenuAnchor
   OnClicked_Event += WBP_ResetButton.Button
   OnClicked_Event_0 += WBP_SummitButton.Button
+
+#### Event: OnClicked_Event
+
+  As Attributes Menu Controller.HandleResetButtonClicked()
+
+#### Event: OnClicked_Event_0
+
+  As Attributes Menu Controller.HandleSubmitButtonClicked()
+
+#### Event: WidgetControllerSet
+
+  if (cast(WidgetController as AttributesMenuController)):
+    As Attributes Menu Controller = cast(WidgetController as AttributesMenuController)
+  for each (ArrayElement, ArrayIndex) in PrimaryRows.GetAllChildren():
+    if (cast(ArrayElement as PlayerUserWidget)):
+      As Player User Widget = cast(ArrayElement as PlayerUserWidget)
+      As Attributes Menu Controller.GetPrimaryRowController(Index: ArrayElement)
+      cast(ArrayElement as PlayerUserWidget).SetWidgetController(InWidgetController: As Attributes Menu Controller.GetPrimaryRowController(Index: ArrayElement))
+  for each (ArrayElement, ArrayIndex) in LeftArea.GetAllChildren():
+    if (cast(ArrayElement as PlayerUserWidget)):
+      As Player User Widget = cast(ArrayElement as PlayerUserWidget)
+      SecondaryRows.Array_AddUnique(NewItem: cast(ArrayElement as PlayerUserWidget))
+  for each (ArrayElement, ArrayIndex) in RightArea.GetAllChildren():
+    if (cast(ArrayElement as PlayerUserWidget)):
+      As Player User Widget = cast(ArrayElement as PlayerUserWidget)
+      SecondaryRows.Array_AddUnique(NewItem: cast(ArrayElement as PlayerUserWidget))
+  for each (ArrayElement, ArrayIndex) in SecondaryRows:
+    As Attributes Menu Controller.GetSecondaryRowController(Index: ArrayElement)
+    ArrayElement.SetWidgetController(InWidgetController: As Attributes Menu Controller.GetSecondaryRowController(Index: ArrayElement))
+  As Attributes Menu Controller.SetAvailablePointsText(InTextBlock: AvailablePointsValue)
+  As Attributes Menu Controller.UpdateUI()

@@ -292,11 +292,27 @@ class GraphBuilder:
             target_node.output_connections[target_pin_id].append(source_node)
     
     def _find_entry_nodes(self, nodes: List[GraphNode]) -> List[GraphNode]:
-        """识别图的入口节点"""
+        """
+        识别图的入口节点
+        增强版本：优先识别事件节点，确保所有事件都被包含
+        """
         entry_nodes = []
         
+        # 第一优先级：识别所有事件节点
+        event_node_types = {
+            "K2Node_Event", "K2Node_CustomEvent", "K2Node_ComponentBoundEvent",
+            "/Script/BlueprintGraph.K2Node_Event", 
+            "/Script/BlueprintGraph.K2Node_CustomEvent",
+            "/Script/BlueprintGraph.K2Node_ComponentBoundEvent"
+        }
+        
         for node in nodes:
-            # 检查是否有输出执行引脚
+            # 检查是否为事件节点
+            if node.class_type in event_node_types:
+                entry_nodes.append(node)
+                continue
+            
+            # 第二优先级：其他有输出执行引脚且无连接输入执行引脚的节点
             has_output_exec = any(
                 pin.pin_type == "exec" and pin.direction == "output"
                 for pin in node.pins
@@ -314,9 +330,17 @@ class GraphBuilder:
             if not has_connected_input_exec:
                 entry_nodes.append(node)
         
+        # 去重（避免事件节点被重复添加）
+        seen_guids = set()
+        unique_entry_nodes = []
+        for node in entry_nodes:
+            if node.node_guid not in seen_guids:
+                seen_guids.add(node.node_guid)
+                unique_entry_nodes.append(node)
+        
         # 按位置排序
-        entry_nodes.sort(key=lambda node: float(node.properties.get("NodePosY", 0)))
-        return entry_nodes
+        unique_entry_nodes.sort(key=lambda node: float(node.properties.get("NodePosY", 0)))
+        return unique_entry_nodes
     
     def _extract_blueprint_name(self, raw_objects: List[RawObject]) -> str:
         """从原始对象中提取蓝图名称"""

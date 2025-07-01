@@ -31,10 +31,7 @@ from .common import (
 @register_processor(
     "K2Node_Event", 
     "K2Node_CustomEvent", 
-    "K2Node_ComponentBoundEvent",
-    "/Script/BlueprintGraph.K2Node_Event",
-    "/Script/BlueprintGraph.K2Node_CustomEvent",
-    "/Script/BlueprintGraph.K2Node_ComponentBoundEvent"
+    "K2Node_ComponentBoundEvent"
 )
 def process_generic_event_node(analyzer, context, node) -> Optional[EventNode]:
     """
@@ -70,8 +67,7 @@ def process_generic_event_node(analyzer, context, node) -> Optional[EventNode]:
 # ============================================================================
 
 @register_processor(
-    "K2Node_VariableSet",
-    "/Script/BlueprintGraph.K2Node_VariableSet"
+    "K2Node_VariableSet"
 )
 def process_variable_set(analyzer, context, node) -> Optional[AssignmentNode]:
     """
@@ -156,79 +152,7 @@ def process_variable_set(analyzer, context, node) -> Optional[AssignmentNode]:
 # 函数调用处理器
 # ============================================================================
 
-@register_processor(
-    "K2Node_CallFunction",
-    "/Script/BlueprintGraph.K2Node_CallFunction"
-)
-def process_call_function(analyzer, context, node) -> Optional[ASTNode]:
-    """
-    处理函数调用节点
-    """
-    # 使用统一工具函数提取函数信息
-    func_name = extract_function_reference(node)
-    
-    # 解析目标对象
-    target_expr = None
-    self_pin = find_pin(node, "self", "input")
-    if self_pin and self_pin.linked_to:
-        target_expr = analyzer._resolve_data_expression(context, self_pin)
-    
-    # 解析参数
-    arguments = analyzer._parse_function_arguments(context, node)
-    
-    # 创建函数调用节点
-    if has_execution_pins(node):
-        return FunctionCallNode(
-            target=target_expr,
-            function_name=func_name,
-            arguments=arguments,
-            source_location=create_source_location(node)
-        )
-    else:
-        return FunctionCallExpression(
-            target=target_expr,
-            function_name=func_name,
-            arguments=arguments,
-            source_location=create_source_location(node)
-        )
 
-
-@register_processor(
-    "K2Node_CallArrayFunction",
-    "/Script/BlueprintGraph.K2Node_CallArrayFunction"
-)
-def process_call_array_function(analyzer, context, node) -> Optional[ASTNode]:
-    """
-    处理数组函数调用节点
-    """
-    # 提取函数名称
-    function_name = extract_function_reference(node)
-    
-    # 查找目标数组引脚
-    target_pin = find_pin_by_aliases(node, "target", "input")
-    target_expr = None
-    if target_pin:
-        target_expr = analyzer._resolve_data_expression(context, target_pin)
-    
-    # 解析参数，排除数组函数的特殊引脚
-    exclude_pins = {"TargetArray", "Array"}
-    arguments = analyzer._parse_function_arguments(context, node, exclude_pins)
-    
-    # 创建函数调用节点
-    if has_execution_pins(node):
-        return FunctionCallNode(
-            target=target_expr,
-            function_name=function_name,
-            arguments=arguments,
-            source_location=create_source_location(node)
-        )
-    else:
-        return FunctionCallExpression(
-            target=target_expr,
-            function_name=function_name,
-            arguments=arguments,
-            source_location=create_source_location(node)
-        )
 
 
 # ============================================================================
@@ -236,8 +160,7 @@ def process_call_array_function(analyzer, context, node) -> Optional[ASTNode]:
 # ============================================================================
 
 @register_processor(
-    "K2Node_IfThenElse",
-    "/Script/BlueprintGraph.K2Node_IfThenElse"
+    "K2Node_IfThenElse"
 )
 def process_if_then_else(analyzer, context, node) -> Optional[BranchNode]:
     """
@@ -271,8 +194,7 @@ def process_if_then_else(analyzer, context, node) -> Optional[BranchNode]:
 
 
 @register_processor(
-    "K2Node_ExecutionSequence",
-    "/Script/BlueprintGraph.K2Node_ExecutionSequence"
+    "K2Node_ExecutionSequence"
 )
 def process_execution_sequence(analyzer, context, node) -> Optional[ExecutionBlock]:
     """
@@ -302,8 +224,7 @@ def process_execution_sequence(analyzer, context, node) -> Optional[ExecutionBlo
 # ============================================================================
 
 @register_processor(
-    "K2Node_Knot",
-    "/Script/BlueprintGraph.K2Node_Knot"
+    "K2Node_Knot"
 )
 def process_knot_node(analyzer, context, node) -> Optional[ASTNode]:
     """
@@ -314,8 +235,7 @@ def process_knot_node(analyzer, context, node) -> Optional[ASTNode]:
 
 
 @register_processor(
-    "K2Node_DynamicCast",
-    "/Script/BlueprintGraph.K2Node_DynamicCast"
+    "K2Node_DynamicCast"
 )
 def process_dynamic_cast(analyzer, context, node) -> Optional[BranchNode]:
     """
@@ -444,7 +364,7 @@ def process_array_access_node(analyzer, context, node) -> Optional[FunctionCallE
 # 宏处理器
 # ============================================================================
 
-@register_processor("K2Node_MacroInstance:ForEachLoop", "/Script/BlueprintGraph.K2Node_MacroInstance:ForEachLoop")
+@register_processor("K2Node_MacroInstance:ForEachLoop")
 def process_foreach_macro(analyzer, context, node) -> NodeProcessingResult:
     """
     处理ForEach宏 - 使用ScopeManager精确管理循环变量作用域
@@ -527,7 +447,7 @@ def process_foreach_macro(analyzer, context, node) -> NodeProcessingResult:
     return NodeProcessingResult(node=loop_node, continuation_pin=completed_pin)
 
 
-@register_processor("K2Node_MacroInstance:WhileLoop", "/Script/BlueprintGraph.K2Node_MacroInstance:WhileLoop")
+@register_processor("K2Node_MacroInstance:WhileLoop")
 def process_while_macro(analyzer, context, node) -> Optional[LoopNode]:
     """
     处理While宏
@@ -554,7 +474,7 @@ def process_while_macro(analyzer, context, node) -> Optional[LoopNode]:
     return loop_node
 
 
-@register_processor("K2Node_MacroInstance", "/Script/BlueprintGraph.K2Node_MacroInstance")
+@register_processor("K2Node_MacroInstance")
 def process_generic_macro(analyzer, context, node) -> Optional[FunctionCallNode]:
     """
     处理通用宏（作为函数调用）
@@ -595,8 +515,7 @@ def process_generic_macro(analyzer, context, node) -> Optional[FunctionCallNode]
 # ============================================================================
 
 @register_processor(
-    "K2Node_AssignDelegate",
-    "/Script/BlueprintGraph.K2Node_AssignDelegate"
+    "K2Node_AssignDelegate"
 )
 def process_assign_delegate(analyzer, context, node) -> Optional[AssignmentNode]:
     """
@@ -652,49 +571,130 @@ def process_assign_delegate(analyzer, context, node) -> Optional[AssignmentNode]
 # 特殊能力调用处理器 - Inject-and-Delegate 模式实现
 # ============================================================================
 
+
+
+
+# ============================================================================
+# Widget创建处理器
+# ============================================================================
+
+
+
+
+# ============================================================================
+# 统一通用可调用处理器 - 消除重复逻辑
+# ============================================================================
+
 @register_processor(
+    "K2Node_CallFunction",
+    "K2Node_CallArrayFunction", 
     "K2Node_LatentAbilityCall",
-    "/Script/GameplayAbilitiesEditor.K2Node_LatentAbilityCall"
+    "K2Node_CreateWidget"
 )
-def process_latent_ability_call(analyzer, context, node) -> Optional[ASTNode]:
+def process_generic_callable(analyzer, context, node) -> Optional[ASTNode]:
     """
-    处理潜在能力调用节点 - 使用 Inject-and-Delegate 模式
-    
-    Inject: 为缺失的 OwningAbility 参数注入正确的上下文值 (self)
-    Delegate: 将逻辑委托给强化的通用处理器
+    统一通用可调用处理器 - 处理所有类似函数调用的节点
+    消除 process_call_function, process_call_array_function, process_latent_ability_call, process_create_widget 的重复逻辑
     """
-    # Phase 1: 参数注入 (Inject)
-    # 检查是否存在 OwningAbility 引脚，如果没有连接则注入 self 上下文
-    owning_ability_pin = find_pin(node, "OwningAbility", "input")
+    # 第一步：提取函数名称，根据节点类型使用不同策略
+    if "CreateWidget" in node.class_type:
+        func_name = "CreateWidget"
+    elif "LatentAbilityCall" in node.class_type:
+        func_name = node.properties.get("ProxyFactoryFunctionName", "LatentAbilityCall")
+    else:
+        func_name = extract_function_reference(node)
     
-    if owning_ability_pin and not owning_ability_pin.linked_to:
-        # 注入 self 上下文到 OwningAbility 参数
-        # 创建 self 表达式并将其映射到该引脚
-        self_expr = VariableGetExpression(
-            variable_name="self",
-            is_self_variable=True,
+    # 第二步：解析目标对象，根据节点类型使用不同的引脚别名
+    target_expr = None
+    
+    if "CallArrayFunction" in node.class_type:
+        # 数组函数使用 target 别名查找
+        target_pin = find_pin_by_aliases(node, "target", "input")
+        if target_pin:
+            target_expr = analyzer._resolve_data_expression(context, target_pin)
+    else:
+        # 其他函数使用 self 引脚
+        self_pin = find_pin(node, "self", "input")
+        if self_pin and self_pin.linked_to:
+            target_expr = analyzer._resolve_data_expression(context, self_pin)
+    
+    # 第三步：特殊处理 - LatentAbilityCall 的 Inject-and-Delegate 模式
+    if "LatentAbilityCall" in node.class_type:
+        # Phase 1: 参数注入 (Inject)
+        # 检查是否存在 OwningAbility 引脚，如果没有连接则注入 self 上下文
+        owning_ability_pin = find_pin(node, "OwningAbility", "input")
+        
+        if owning_ability_pin and not owning_ability_pin.linked_to:
+            # 注入 self 上下文到 OwningAbility 参数
+            self_expr = VariableGetExpression(
+                variable_name="self",
+                is_self_variable=True,
+                source_location=create_source_location(node)
+            )
+            # 将注入的表达式添加到 pin_ast_map 中
+            context.pin_ast_map[owning_ability_pin.pin_id] = self_expr
+    
+    # 第四步：解析参数，根据节点类型排除不同的特殊引脚
+    exclude_pins = {"self"}  # 默认排除 self
+    
+    if "CallArrayFunction" in node.class_type:
+        exclude_pins.update({"TargetArray", "Array"})
+    elif "LatentAbilityCall" in node.class_type:
+        exclude_pins.update({"OwningAbility"})
+    
+    # 第五步：特殊处理 CreateWidget 的 Class 参数
+    if "CreateWidget" in node.class_type:
+        # CreateWidget 需要特殊处理 Class 参数
+        arguments = []
+        
+        # 解析Class参数（Widget类型）
+        class_pin = find_pin(node, "Class", "input")
+        class_expr = None
+        
+        if class_pin:
+            if class_pin.default_object:
+                # 从default_object中提取类名
+                class_name = parse_object_path(class_pin.default_object)
+                if class_name:
+                    class_expr = LiteralExpression(
+                        value=f'"{class_name}"',
+                        literal_type="string",
+                        source_location=create_source_location(node)
+                    )
+            
+            # 如果default_object解析失败，尝试从连接的引脚获取
+            if not class_expr and class_pin.linked_to:
+                class_expr = analyzer._resolve_data_expression(context, class_pin)
+        
+        # 如果仍然没有找到类信息，使用默认值
+        if not class_expr:
+            class_expr = LiteralExpression(
+                value='"UnknownWidget"',
+                literal_type="string",
+                source_location=create_source_location(node)
+            )
+        
+        arguments.append(("Class", class_expr))
+        
+        # 查找并解析OwningPlayer参数（如果存在）
+        owning_player_pin = find_pin(node, "OwningPlayer", "input")
+        if owning_player_pin and owning_player_pin.linked_to:
+            owning_player_expr = analyzer._resolve_data_expression(context, owning_player_pin)
+            arguments.append(("OwningPlayer", owning_player_expr))
+    else:
+        # 其他节点使用通用参数解析
+        arguments = analyzer._parse_function_arguments(context, node, exclude_pins)
+    
+    # 第六步：创建函数调用节点，根据执行引脚决定类型
+    # CreateWidget 特殊处理：即使有执行引脚也返回表达式，以便后续节点引用其返回值
+    if "CreateWidget" in node.class_type:
+        return FunctionCallExpression(
+            target=target_expr,
+            function_name=func_name,
+            arguments=arguments,
             source_location=create_source_location(node)
         )
-        # 将注入的表达式添加到 pin_ast_map 中
-        context.pin_ast_map[owning_ability_pin.pin_id] = self_expr
-    
-    # Phase 2: 逻辑委托 (Delegate)
-    # K2Node_LatentAbilityCall 使用 ProxyFactoryFunctionName 而不是 FunctionReference
-    func_name = node.properties.get("ProxyFactoryFunctionName", "LatentAbilityCall")
-    
-    # 解析目标对象
-    target_expr = None
-    self_pin = find_pin(node, "self", "input")
-    if self_pin and self_pin.linked_to:
-        target_expr = analyzer._resolve_data_expression(context, self_pin)
-    
-    # 解析参数（现在 OwningAbility 将正确解析为 self）
-    # 排除隐藏的引脚（如 OwningAbility）
-    exclude_pins = {"self", "OwningAbility"}
-    arguments = analyzer._parse_function_arguments(context, node, exclude_pins)
-    
-    # 创建函数调用节点
-    if has_execution_pins(node):
+    elif has_execution_pins(node):
         return FunctionCallNode(
             target=target_expr,
             function_name=func_name,
@@ -707,63 +707,4 @@ def process_latent_ability_call(analyzer, context, node) -> Optional[ASTNode]:
             function_name=func_name,
             arguments=arguments,
             source_location=create_source_location(node)
-        )
-
-
-# ============================================================================
-# Widget创建处理器
-# ============================================================================
-
-@register_processor(
-    "K2Node_CreateWidget",
-    "/Script/UMGEditor.K2Node_CreateWidget"
-)
-def process_create_widget(analyzer, context, node) -> Optional[ASTNode]:
-    """
-    处理Widget创建节点
-    K2Node_CreateWidget -> FunctionCallExpression/FunctionCallNode
-    """
-    # 解析Class参数（Widget类型）
-    class_pin = find_pin(node, "Class", "input")
-    class_expr = None
-    
-    if class_pin:
-        if class_pin.default_object:
-            # 从default_object中提取类名
-            class_name = parse_object_path(class_pin.default_object)
-            if class_name:
-                class_expr = LiteralExpression(
-                    value=f'"{class_name}"',
-                    literal_type="string",
-                    source_location=create_source_location(node)
-                )
-        
-        # 如果default_object解析失败，尝试从连接的引脚获取
-        if not class_expr and class_pin.linked_to:
-            class_expr = analyzer._resolve_data_expression(context, class_pin)
-    
-    # 如果仍然没有找到类信息，使用默认值
-    if not class_expr:
-        class_expr = LiteralExpression(
-            value='"UnknownWidget"',
-            literal_type="string",
-            source_location=create_source_location(node)
-        )
-    
-    # 解析其他参数
-    arguments = [("Class", class_expr)]
-    
-    # 查找并解析OwningPlayer参数（如果存在）
-    owning_player_pin = find_pin(node, "OwningPlayer", "input")
-    if owning_player_pin and owning_player_pin.linked_to:
-        owning_player_expr = analyzer._resolve_data_expression(context, owning_player_pin)
-        arguments.append(("OwningPlayer", owning_player_expr))
-    
-    # CreateWidget主要用于产生值（Widget实例），即使有执行引脚也应该返回表达式
-    # 这样后续节点（如AddToViewport）可以正确引用其返回值
-    return FunctionCallExpression(
-        target=None,  # CreateWidget是静态函数
-        function_name="CreateWidget",
-        arguments=arguments,
-        source_location=create_source_location(node)
-    ) 
+        ) 
