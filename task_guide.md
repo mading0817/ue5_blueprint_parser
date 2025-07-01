@@ -19,6 +19,12 @@ This milestone focused on refactoring the core parsing engine to be more robust,
     - **Context**: The `graph_formatter` and `widget_formatter` were tightly coupled in a single `parser/formatters.py` file, violating the Single Responsibility Principle and creating maintenance risks.
     - **Resolution**: The `formatters.py` file was split into a dedicated `parser/formatters/` package with clear separation of concerns (`base.py`, `graph_formatter.py`, `widget_formatter.py`).
 
+- [x] **Eliminate `K2Node_DynamicCast` Output Redundancy**:
+    - **Context**: The parser generated redundant `declare` and assignment lines for `cast-and-assign` patterns, leading to cluttered output.
+    - **Resolution**:
+        1.  Enhanced `process_variable_set` in `parser/processors.py` to intelligently suppress `AssignmentNode` creation when a variable is already initialized by a preceding `CastExpression` within the same execution flow.
+        2.  Modified `visit_variable_declaration` in `parser/formatters/graph_formatter.py` to remove the `declare` keyword for initial value assignments, resulting in a cleaner pseudo-code format.
+
 ## Milestone 2: Future Enhancements (To-Do)
 
 This milestone outlines potential next steps for improving the parser.

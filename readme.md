@@ -70,6 +70,7 @@ The primary refactoring effort centered on establishing a **Strict Contract** be
 **Recent Major Improvements (Completed):**
 - **`K2Node_DynamicCast` Full Support**: `DynamicCast` nodes are correctly parsed as `CastExpression` objects.
 - **Precise Variable Naming for Cast Results**: Variables for cast results preserve spaces and are properly registered in the symbol table.
+- **`K2Node_DynamicCast` Redundancy Resolution**: Eliminated redundant `declare` and assignment lines for `cast-and-assign` patterns, resulting in a cleaner and more readable output.
 - **Enhanced Object Path Parsing**: The `parse_object_path` utility function robustly extracts object names.
 
 ## Testing and Snapshot Workflow
