@@ -69,7 +69,7 @@ graph TD
 
 2.  **Three-Tier Processing Strategy for Robustness**:
     *   The parser employs a **three-tier processing strategy** to ensure every node is handled gracefully, eliminating all "Unsupported node" errors:
-        *   **Specialized Processors**: For nodes with unique logic (e.g., `K2Node_IfThenElse`). This includes the **"Inject-and-Delegate"** pattern for complex nodes like `K2Node_LatentAbilityCall`.
+        *   **Specialized Processors**: For nodes with unique logic (e.g., `K2Node_IfThenElse`). This includes specific handling for event binding nodes (`K2Node_AddDelegate`, `K2Node_AssignDelegate`) which are now unified into `EventSubscriptionNode`s, and the **"Inject-and-Delegate"** pattern for complex nodes like `K2Node_LatentAbilityCall`.
         *   **Generic Callable Processor**: A single, intelligent processor handles the vast majority of "function-call-like" nodes (e.g., `K2Node_CallFunction`, `K2Node_SpawnActorFromClass`).
         *   **Fallback Processor**: For any truly unknown node type, a `FallbackNode` is generated in the AST, ensuring the parsing process never halts.
 

@@ -12,10 +12,10 @@
 
 #### Event: Construct
 
-  CloseAttributesMenu.OutputDelegate += CloseButton.Button
-  OnMenuOpenChanged_Event.OutputDelegate += ParentMenuAnchor
-  OnClicked_Event.OutputDelegate += WBP_ResetButton.Button
-  OnClicked_Event_0.OutputDelegate += WBP_SummitButton.Button
+  CloseButton.Button.OnClicked += CloseAttributesMenu
+  ParentMenuAnchor.OnMenuOpenChanged += OnMenuOpenChanged_Event
+  WBP_ResetButton.Button.OnClicked += OnClicked_Event
+  WBP_SummitButton.Button.OnClicked += OnClicked_Event_0
 
 #### Event: OnClicked_Event
 

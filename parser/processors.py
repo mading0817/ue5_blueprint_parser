@@ -12,7 +12,8 @@ from .models import (
     PropertyAccessNode, UnsupportedNode, ExecutionBlock, BranchNode,
     LoopNode, LoopType, LatentActionNode, TemporaryVariableDeclaration,
     VariableDeclaration, CallbackBlock, CastExpression,
-    EventReferenceExpression, LoopVariableExpression, NodeProcessingResult
+    EventReferenceExpression, LoopVariableExpression, NodeProcessingResult,
+    EventSubscriptionNode
 )
 from .common import (
     register_processor, find_pin, create_source_location,
@@ -511,58 +512,79 @@ def process_generic_macro(analyzer, context, node) -> Optional[FunctionCallNode]
 
 
 # ============================================================================
-# 委托分配处理器
+# 委托处理器 - 统一事件订阅处理
 # ============================================================================
 
 @register_processor(
+    "K2Node_AddDelegate",
     "K2Node_AssignDelegate"
 )
-def process_assign_delegate(analyzer, context, node) -> Optional[AssignmentNode]:
+def process_delegate_subscription(analyzer, context, node) -> Optional[EventSubscriptionNode]:
     """
-    处理委托分配节点 - 将事件绑定转换为赋值操作
-    K2Node_AssignDelegate -> AssignmentNode
-    
-    委托分配的本质是事件订阅，即将一个对象的事件（如按钮的OnClicked）
-    与一个处理函数（如蓝图的CustomEvent）绑定
+    统一委托处理器 - 处理事件订阅节点
+    支持: K2Node_AddDelegate, K2Node_AssignDelegate
+    将委托绑定转换为新的事件订阅模型
     """
-    # 解析委托目标对象和属性
-    delegate_pin = find_pin(node, "Delegate", "input")
-    if not delegate_pin or not delegate_pin.linked_to:
-        # 没有委托连接，创建默认的赋值
-        return AssignmentNode(
-            target=VariableGetExpression(
-                variable_name="UnknownDelegate",
-                is_self_variable=True
-            ),
-            value_expression=LiteralExpression(value="null", literal_type="delegate"),
-            is_local_variable=False,
+    # 解析事件源对象 (source_object)
+    # 通过解析连接到节点 "self" 输入引脚的对象来获取
+    self_pin = find_pin(node, "self", "input")
+    if self_pin and self_pin.linked_to:
+        source_object = analyzer._resolve_data_expression(context, self_pin)
+    else:
+        # 如果没有连接的self引脚，使用默认的self引用
+        source_object = VariableGetExpression(
+            variable_name="self",
+            is_self_variable=True,
             source_location=create_source_location(node)
         )
     
-    # 解析委托目标（通常是一个属性访问表达式）
-    delegate_target_expr = analyzer._resolve_data_expression(context, delegate_pin)
+    # 解析事件名 (event_name)
+    # 从节点的 DelegateReference.MemberName 属性中提取
+    event_name = "UnknownEvent"
+    delegate_reference = node.properties.get("DelegateReference", {})
+    if isinstance(delegate_reference, dict):
+        event_name = delegate_reference.get("MemberName", "UnknownEvent")
+    elif isinstance(delegate_reference, str):
+        # 处理字符串格式的委托引用
+        # 例如: "(MemberParent=Class'/Script/UMG.Button',MemberName=OnClicked)"
+        if "MemberName=" in delegate_reference:
+            # 提取 MemberName= 后面的值
+            parts = delegate_reference.split("MemberName=")
+            if len(parts) > 1:
+                # 获取MemberName后的值，去掉结尾的括号
+                member_name = parts[1].split(")")[0].split(",")[0].strip('"').strip("'")
+                if member_name:
+                    event_name = member_name
     
-    # 解析委托值（要绑定的函数）
-    value_pin = find_pin(node, "Value", "input")
-    if value_pin:
-        value_expr = analyzer._resolve_data_expression(context, value_pin)
+    # 解析处理器 (handler)
+    # 通过解析连接到节点 "Delegate" 输入引脚的 K2Node_CustomEvent 来获取
+    delegate_pin = find_pin(node, "Delegate", "input")
+    if delegate_pin and delegate_pin.linked_to:
+        handler = analyzer._resolve_data_expression(context, delegate_pin)
     else:
-        # 如果没有 Value 引脚，查找其他可能的引脚
-        # 有些版本的UE可能使用不同的引脚名称
+        # 如果没有连接的委托引脚，查找其他可能的引脚名称
+        handler_pin = None
         for pin in node.pins:
-            if pin.direction == "input" and pin.pin_type != "exec" and pin.pin_name != "Delegate":
-                value_expr = analyzer._resolve_data_expression(context, pin)
+            if (pin.direction == "input" and 
+                pin.pin_type != "exec" and 
+                pin.pin_name.lower() in ["delegate", "value", "event"]):
+                handler_pin = pin
                 break
+        
+        if handler_pin and handler_pin.linked_to:
+            handler = analyzer._resolve_data_expression(context, handler_pin)
         else:
-            # 如果没有找到值引脚，使用默认值
-            value_expr = LiteralExpression(value="null", literal_type="delegate")
+            # 使用默认的事件引用
+            handler = EventReferenceExpression(
+                event_name="UnknownHandler",
+                source_location=create_source_location(node)
+            )
     
-    # 创建赋值节点，使用 += 操作符表示委托绑定
-    return AssignmentNode(
-        target=delegate_target_expr,
-        value_expression=value_expr,
-        is_local_variable=False,  # 委托分配通常不是局部变量
-        operator="+=",  # 委托绑定使用 += 操作符
+    # 构建并返回新的事件订阅节点
+    return EventSubscriptionNode(
+        source_object=source_object,
+        event_name=event_name,
+        handler=handler,
         source_location=create_source_location(node)
     )
 

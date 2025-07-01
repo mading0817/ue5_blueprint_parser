@@ -18,7 +18,7 @@ from parser.models import (
     # 新的语义节点
     VariableDeclaration, CallbackBlock,
     # 新增的AST节点
-    GenericCallNode, FallbackNode
+    GenericCallNode, FallbackNode, EventSubscriptionNode
 )
 
 
@@ -114,6 +114,10 @@ class ASTVisitor(ABC):
     
     @abstractmethod
     def visit_fallback_node(self, node: FallbackNode) -> str:
+        pass
+    
+    @abstractmethod
+    def visit_event_subscription_node(self, node: EventSubscriptionNode) -> str:
         pass
 
 
@@ -558,4 +562,29 @@ class MarkdownEventGraphFormatter(ASTVisitor, Formatter):
         
         comment_line = "".join(comment_parts)
         self._add_line(comment_line)
+        return ""
+    
+    def visit_event_subscription_node(self, node: EventSubscriptionNode) -> str:
+        """访问事件订阅节点，格式化为 Source.Event += Handler 的形式"""
+        # 构建事件源对象字符串
+        if node.source_object:
+            source_str = node.source_object.accept(self)
+        else:
+            source_str = "<unknown>"
+        
+        # 构建事件处理器字符串
+        if node.handler:
+            handler_str = node.handler.accept(self)
+            # 处理特殊情况：如果处理器是 PropertyAccessNode 且属性名为 OutputDelegate，
+            # 则只使用目标对象名称（即事件名称）
+            if hasattr(node.handler, 'property_name') and node.handler.property_name == "OutputDelegate":
+                if hasattr(node.handler, 'target'):
+                    handler_str = node.handler.target.accept(self)
+        else:
+            handler_str = "<unknown>"
+        
+        # 格式化事件订阅：Source.Event += Handler
+        event_subscription = f"{source_str}.{node.event_name} += {handler_str}"
+        self._add_line(event_subscription)
+        
         return "" 

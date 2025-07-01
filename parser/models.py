@@ -436,6 +436,22 @@ class FunctionCallNode(Statement):
         return visitor.visit_function_call_node(self)
 
 
+@dataclass
+class EventSubscriptionNode(Statement):
+    """
+    事件订阅节点 - 新增
+    用于表示将事件处理器绑定到对象事件的操作
+    例如: Button.OnClicked += OnButtonClicked_Event
+    用于处理 K2Node_AddDelegate 和 K2Node_AssignDelegate 节点
+    """
+    source_object: Optional[Expression] = None  # 事件源对象，例如 Button 实例
+    event_name: str = ""  # 被订阅的事件名，例如 OnClicked
+    handler: Optional[Expression] = None  # 处理事件的函数或自定义事件
+    
+    def accept(self, visitor):
+        return visitor.visit_event_subscription_node(self)
+
+
 # ============================================================================
 # 控制流节点 (Control Flow Nodes)
 # ============================================================================

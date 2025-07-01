@@ -4,7 +4,7 @@
     As Overlay Widget Controller = cast(WidgetController as OverlayWidgetController)
     OverlayWidgetController = cast(WidgetController as OverlayWidgetController)
   WBP_PlayerInfoPanelWidget.SetWidgetController(InWidgetController: OverlayWidgetController.PlayerInfoPanelController)
-  // Fallback: /Script/BlueprintGraph.K2Node_AddDelegate (K2Node_AddDelegate_1)
+  OverlayWidgetController.OnPlayerLevelUp += OnPlayerLevelUp
 
 #### Event: OnPlayerLevelUp
 
@@ -12,8 +12,8 @@
 
 #### Event: Construct
 
-  OnAttributesMenuButtonClicked_Event.OutputDelegate += WBP_AttributesMenuButton.Button
-  // Fallback: /Script/BlueprintGraph.K2Node_AddDelegate (K2Node_AddDelegate_0)
+  WBP_AttributesMenuButton.Button.OnClicked += OnAttributesMenuButtonClicked_Event
+  WBP_AbilityMenuButton.Button.OnClicked += OnAbilityMenuButtonClicked_Event
 
 #### Event: OnAttributesMenuButtonClicked_Event
 
