@@ -136,6 +136,79 @@ def parse(blueprint_text: str) -> List[WidgetNode]:
     return widget_builder.build(raw_objects)
 
 
+def parse_v2(blueprint_text: str) -> 'BlueprintParseResult':
+    """
+    新版本：解析UE5 UserWidget蓝图文本并返回统一的解析结果
+    """
+    from .models import BlueprintParseResult
+    import re
+    
+    if not blueprint_text or not blueprint_text.strip():
+        return BlueprintParseResult(
+            blueprint_name="UnknownBlueprint",
+            blueprint_path="",
+            content=None,
+            success=False,
+            error_message="输入文本为空"
+        )
+    
+    try:
+        # 第一阶段：使用通用解析器解析文本
+        object_parser = BlueprintObjectParser()
+        raw_objects = object_parser.parse(blueprint_text)
+        
+        if not raw_objects:
+            return BlueprintParseResult(
+                blueprint_name="UnknownBlueprint",
+                blueprint_path="",
+                content=None,
+                success=False,
+                error_message="无法解析蓝图文本格式"
+            )
+        
+        # 使用与graph_parser相同的名称提取逻辑
+        # 创建临时的GraphBuilder实例来复用名称提取逻辑
+        from .graph_parser import GraphBuilder
+        temp_builder = GraphBuilder()
+        blueprint_name = temp_builder._extract_blueprint_name(raw_objects)
+        
+        # 尝试提取完整路径
+        blueprint_path = ""
+        path_match = re.search(r"/Game/[^'\"]+\.([^'\"]+)", blueprint_text)
+        if path_match:
+            blueprint_path = path_match.group(0)
+        
+        # 第二阶段：使用 Widget 构建器构建 WidgetNode 树
+        widget_builder = WidgetBuilder()
+        widget_nodes = widget_builder.build(raw_objects)
+        
+        if not widget_nodes:
+            return BlueprintParseResult(
+                blueprint_name=blueprint_name,
+                blueprint_path=blueprint_path,
+                content=None,
+                success=False,
+                error_message="无法构建Widget树结构"
+            )
+        
+        return BlueprintParseResult(
+            blueprint_name=blueprint_name,
+            blueprint_path=blueprint_path,
+            content=widget_nodes,
+            success=True,
+            error_message=None
+        )
+        
+    except Exception as e:
+        return BlueprintParseResult(
+            blueprint_name="UnknownBlueprint",
+            blueprint_path="",
+            content=None,
+            success=False,
+            error_message=f"解析过程中发生错误: {str(e)}"
+        )
+
+
 # ================================================================
 # 向后兼容API
 # ================================================================

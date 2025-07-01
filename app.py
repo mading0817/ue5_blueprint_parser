@@ -1,148 +1,125 @@
 from flask import Flask, request, render_template, jsonify
-from parser.graph_parser import parse_blueprint_graph
-from parser.formatters import MarkdownEventGraphFormatter, WidgetTreeFormatter, ConciseStrategy, VerboseStrategy
-from parser.widget_parser import parse as parse_widget_ast  # 替换旧的 blueprint_parser 引入
+from parser.graph_parser import parse_blueprint_graph_v2
+from parser.widget_parser import parse_v2 as parse_widget_v2
+from parser.formatters import MarkdownEventGraphFormatter, WidgetTreeFormatter, VerboseStrategy
+from parser.analyzer import GraphAnalyzer
+import re
+from typing import Optional, Tuple
 
 # 初始化Flask应用
 app = Flask(__name__)
 
 
-@app.route('/')
-def index():
-    """主页路由，指向Widget解析器"""
-    return render_template('index.html')
-
-
-@app.route('/widget')
-def widget_page():
-    """Widget解析页面"""
-    return render_template('index.html')
-
-
-@app.route('/parse_widget', methods=['POST'])
-def parse_widget():
-    """解析蓝图Widget UI结构并生成层级树"""
-    widget_text = request.form.get('widget_text', '')
-    show_properties = request.form.get('show_properties', '').lower() == 'true'
-    
-    if not widget_text.strip():
-        return render_template('index.html', 
-                             error="请输入Widget蓝图文本内容。")
-    
-    try:
-        # 使用Widget解析管道
-        markdown_output = run_widget_pipeline(widget_text, show_properties)
-        
-        if not markdown_output or "失败" in markdown_output:
-            return render_template('index.html', 
-                                 error=f"解析失败: {markdown_output}")
-        
-        return render_template('index.html', 
-                             result=markdown_output,
-                             input_text=widget_text)
-    
-    except Exception as e:
-        return render_template('index.html', 
-                             error=f"解析Widget过程中发生错误: {str(e)}")
-
-
-@app.route('/parse_graph', methods=['POST'])
-def parse_graph():
-    """解析蓝图Graph逻辑并生成伪代码"""
-    graph_text = request.form.get('graph_text', '')
-    graph_name = request.form.get('graph_name', 'EventGraph')
-    use_verbose = request.form.get('verbose', '').lower() == 'true'
-    
-    if not graph_text.strip():
-        return render_template('graph.html', 
-                             error="请输入Graph文本内容。")
-    
-    try:
-        # 使用新的三阶段管道
-        markdown_output = run_new_pipeline(graph_text, graph_name, use_verbose)
-        
-        if not markdown_output or "失败" in markdown_output:
-            return render_template('graph.html', 
-                                 error=f"解析失败: {markdown_output}")
-        
-        return render_template('graph.html', 
-                             result=markdown_output,
-                             input_text=graph_text,
-                             graph_name=graph_name)
-    
-    except Exception as e:
-        return render_template('graph.html', 
-                             error=f"解析Graph过程中发生错误: {str(e)}")
-
-
-def run_new_pipeline(graph_text: str, graph_name: str = "EventGraph", verbose: bool = False) -> str:
+def extract_blueprint_info(graph_result: Optional['BlueprintParseResult'], 
+                         widget_result: Optional['BlueprintParseResult']) -> Tuple[str, str]:
     """
-    运行新的三阶段管道：graph_parser -> GraphAnalyzer -> MarkdownEventGraphFormatter
-    
-    :param graph_text: 图文本
-    :param graph_name: 图名称
-    :param verbose: 是否使用详细格式
-    :return: 格式化的Markdown输出
+    从解析结果中提取统一的蓝图信息
+    优先使用成功解析的结果中的信息
     """
-    from parser.analyzer import GraphAnalyzer
+    # 优先从Graph结果提取
+    if graph_result and graph_result.success:
+        return graph_result.blueprint_name, graph_result.blueprint_path
     
-    # 阶段1: 解析图结构
-    graph = parse_blueprint_graph(graph_text, graph_name)
+    # 其次从Widget结果提取
+    if widget_result and widget_result.success:
+        return widget_result.blueprint_name, widget_result.blueprint_path
+    
+    # 如果都失败了，返回默认值
+    return "Unknown Blueprint", ""
+
+
+def format_graph_content(graph) -> str:
+    """格式化Graph内容为Markdown"""
     if not graph:
-        return "解析图结构失败：无法识别Graph文本格式"
+        return "无法生成AST"
     
-    # 阶段2: 分析生成AST
+    # 分析生成AST
     analyzer = GraphAnalyzer()
     ast_nodes = analyzer.analyze(graph)
     if not ast_nodes:
-        return "生成AST失败：未找到可处理的入口节点"
+        return "未找到可处理的入口节点"
     
-    # 阶段3: 格式化输出
-    strategy = VerboseStrategy() if verbose else ConciseStrategy()
+    # 格式化输出
+    strategy = VerboseStrategy()  # 硬编码使用详细模式
     formatter = MarkdownEventGraphFormatter(strategy)
     
-    # 添加蓝图标题
-    blueprint_title = f"# {graph.graph_name}"  # graph_name现在包含了蓝图名称和图类型
-    
-    # 格式化所有AST节点
     results = []
     for ast_node in ast_nodes:
         result = formatter.format(ast_node)
         if result:
             results.append(result)
     
-    if not results:
-        return "格式化输出失败：无法生成Markdown输出"
-    
-    # 组合蓝图标题和内容
-    final_output = blueprint_title + '\n\n' + '\n\n---\n\n'.join(results)
-    return final_output
+    return '\n\n'.join(results) if results else "无法生成格式化输出"
 
 
-def run_widget_pipeline(widget_text: str, show_properties: bool = False) -> str:
-    """
-    运行Widget解析管道：widget_parser -> WidgetTreeFormatter
-    用于解析UE5 UserWidget的UI层级结构
-    """
-    # 阶段1: 解析Widget蓝图结构
-    widget_nodes = parse_widget_ast(widget_text)
+def format_widget_content(widget_nodes) -> str:
+    """格式化Widget内容为树状结构"""
     if not widget_nodes:
-        return "解析Widget蓝图失败：无法识别蓝图文本格式或文本为空"
-
-    # 阶段2: 格式化为树状结构
-    formatter = WidgetTreeFormatter(show_properties=show_properties)
+        return "无法生成Widget树"
+    
+    formatter = WidgetTreeFormatter(show_properties=True)  # 硬编码显示属性
     result = formatter.format(widget_nodes)
-
-    if not result or result.strip() == "":
-        return "格式化输出失败：无法生成Widget树状结构"
-
-    return result
+    
+    return result if result else "无法生成Widget树状结构"
 
 
-@app.route('/graph')
-def graph_page():
-    """Graph解析页面"""
-    return render_template('graph.html')
+@app.route('/', methods=['GET', 'POST'])
+def unified_parser():
+    """统一蓝图解析器 - 支持同时解析Widget和Graph"""
+    if request.method == 'GET':
+        return render_template('unified.html')
+    
+    # 获取用户输入
+    widget_text = request.form.get('widget_text', '').strip()
+    graph_text = request.form.get('graph_text', '').strip()
+    
+    # 解析结果容器
+    widget_result = None
+    graph_result = None
+    widget_formatted = None
+    graph_formatted = None
+    widget_error = None
+    graph_error = None
+    
+    # 条件解析Widget
+    if widget_text:
+        widget_result = parse_widget_v2(widget_text)
+        if widget_result.success:
+            widget_formatted = format_widget_content(widget_result.content)
+        else:
+            widget_error = widget_result.error_message
+    
+    # 条件解析Graph
+    if graph_text:
+        graph_result = parse_blueprint_graph_v2(graph_text)
+        if graph_result.success:
+            graph_formatted = format_graph_content(graph_result.content)
+        else:
+            graph_error = graph_result.error_message
+    
+    # 提取统一的蓝图信息
+    blueprint_name, blueprint_path = extract_blueprint_info(graph_result, widget_result)
+    
+    # 名称一致性检查
+    consistency_error = None
+    if (widget_result and widget_result.success and 
+        graph_result and graph_result.success):
+        if widget_result.blueprint_name != graph_result.blueprint_name:
+            consistency_error = (f"警告：检测到不同的蓝图名称 - "
+                               f"Widget: {widget_result.blueprint_name}, "
+                               f"Graph: {graph_result.blueprint_name}。"
+                               f"请确认输入的是同一蓝图的不同部分。")
+    
+    return render_template('unified.html',
+                         blueprint_name=blueprint_name,
+                         blueprint_path=blueprint_path,
+                         widget_result=widget_formatted,
+                         widget_error=widget_error,
+                         graph_result=graph_formatted,
+                         graph_error=graph_error,
+                         consistency_error=consistency_error,
+                         widget_text=widget_text,
+                         graph_text=graph_text)
 
 
 # 启动Web服务器

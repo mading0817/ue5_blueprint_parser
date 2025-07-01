@@ -101,6 +101,12 @@ class BlueprintObjectParser:
             obj_name = class_match.group("name")
             obj_class = class_match.group("class")
             obj = RawObject(name=obj_name, class_type=obj_class)
+            
+            # 检查是否有 ExportPath 属性
+            export_path_match = re.search(r'ExportPath="([^"]+)"', line)
+            if export_path_match:
+                obj.properties["ExportPath"] = export_path_match.group(1)
+            
             objects_by_name[obj_name] = obj
             return obj, True  # 新对象
         

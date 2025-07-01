@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UE5 统一蓝图解析器</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        /* 统一布局样式 */
+        .blueprint-header {
+            text-align: center;
+            margin-bottom: 2em;
+            border-bottom: 2px solid #61afef;
+            padding-bottom: 1em;
+        }
+        
+        .blueprint-path {
+            color: #abb2bf;
+            font-size: 0.9em;
+            margin-top: 0.5em;
+            font-family: 'Courier New', Courier, monospace;
+        }
+        
+        .input-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5em;
+            margin-bottom: 2em;
+        }
+        
+        .input-group {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .input-group label {
+            color: #61afef;
+            font-weight: bold;
+            margin-bottom: 0.5em;
+        }
+        
+        .input-group textarea {
+            height: 200px;
+            resize: vertical;
+        }
+        
+        .parse-button {
+            width: 100%;
+            max-width: 300px;
+            margin: 0 auto 2em auto;
+            display: block;
+            padding: 15px;
+            background-color: #61afef;
+            color: #21252b;
+            border: none;
+            border-radius: 6px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        
+        .parse-button:hover {
+            background-color: #5295c9;
+        }
+        
+        .results-container {
+            display: flex;
+            flex-direction: column;
+            gap: 2em;
+        }
+        
+        .result-section {
+            background-color: #2c313a;
+            border-radius: 8px;
+            border: 1px solid #3e4451;
+            overflow: hidden;
+        }
+        
+        .result-header {
+            background-color: #3e4451;
+            padding: 1em;
+            margin: 0;
+            color: #61afef;
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+        
+        .result-content {
+            padding: 1em;
+        }
+        
+        .result-content pre {
+            margin: 0;
+            background-color: transparent;
+            border: none;
+            padding: 0;
+        }
+        
+        .placeholder {
+            color: #7d8590;
+            font-style: italic;
+            text-align: center;
+            padding: 2em;
+        }
+        
+        .error {
+            color: #e06c75;
+            background-color: #2c1e1e;
+            border: 1px solid #e06c75;
+            border-radius: 4px;
+            padding: 1em;
+            text-align: center;
+        }
+        
+        .copy-btn {
+            background-color: #98c379;
+            color: #21252b;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-top: 1em;
+            transition: background-color 0.3s;
+        }
+        
+        .copy-btn:hover {
+            background-color: #7aa651;
+        }
+        
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .input-section {
+                grid-template-columns: 1fr;
+                gap: 1em;
+            }
+            
+            .input-group textarea {
+                height: 150px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 蓝图标题区域 -->
+        <div class="blueprint-header">
+            {% if blueprint_name and blueprint_name != "Unknown Blueprint" %}
+                <h1>{{ blueprint_name }}</h1>
+                {% if blueprint_path %}
+                    <p class="blueprint-path">{{ blueprint_path }}</p>
+                {% endif %}
+            {% else %}
+                <h1>UE5 统一蓝图解析器</h1>
+                <p>同时解析Widget UI结构和EventGraph逻辑</p>
+            {% endif %}
+        </div>
+
+        <!-- 输入表单 -->
+        <form method="POST">
+            <div class="input-section">
+                <div class="input-group">
+                    <label for="widget_text">Widget蓝图文本:</label>
+                    <textarea id="widget_text" name="widget_text" 
+                              placeholder="请粘贴从UE5蓝图编辑器复制的Widget蓝图文本内容...">{{ widget_text or '' }}</textarea>
+                </div>
+                <div class="input-group">
+                    <label for="graph_text">EventGraph蓝图文本:</label>
+                    <textarea id="graph_text" name="graph_text" 
+                              placeholder="请粘贴从UE5蓝图编辑器复制的EventGraph蓝图文本内容...">{{ graph_text or '' }}</textarea>
+                </div>
+            </div>
+            
+            <button type="submit" class="parse-button">解析蓝图</button>
+        </form>
+
+        <!-- 结果展示区域 -->
+        <div class="results-container">
+            {% if consistency_error %}
+                <div class="error">{{ consistency_error }}</div>
+            {% endif %}
+            
+            <!-- Widget结果区域 -->
+            <div class="result-section">
+                <h2 class="result-header">UI层级结构</h2>
+                <div class="result-content">
+                    {% if widget_result %}
+                        <pre><code>{{ widget_result }}</code></pre>
+                        <button onclick="copyToClipboard('widget', this)" class="copy-btn">复制Widget结果</button>
+                    {% elif widget_error %}
+                        <div class="error">{{ widget_error }}</div>
+                    {% else %}
+                        <div class="placeholder">未提供Widget文本</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Graph结果区域 -->
+            <div class="result-section">
+                <h2 class="result-header">事件图逻辑</h2>
+                <div class="result-content">
+                    {% if graph_result %}
+                        <pre><code>{{ graph_result }}</code></pre>
+                        <button onclick="copyToClipboard('graph', this)" class="copy-btn">复制Graph结果</button>
+                    {% elif graph_error %}
+                        <div class="error">{{ graph_error }}</div>
+                    {% else %}
+                        <div class="placeholder">未提供EventGraph文本</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function copyToClipboard(type, buttonElement) {
+            let resultText = '';
+            if (type === 'widget') {
+                const widgetResult = document.querySelector('.result-section:first-of-type pre code');
+                resultText = widgetResult ? widgetResult.innerText : '';
+            } else if (type === 'graph') {
+                const graphResult = document.querySelector('.result-section:last-of-type pre code');
+                resultText = graphResult ? graphResult.innerText : '';
+            }
+            
+            if (resultText) {
+                navigator.clipboard.writeText(resultText).then(function() {
+                    const originalText = buttonElement.innerText;
+                    const originalBgColor = buttonElement.style.backgroundColor;
+                    
+                    buttonElement.innerText = '已复制!';
+                    buttonElement.style.backgroundColor = '#28a745';
+                    
+                    setTimeout(function() {
+                        buttonElement.innerText = originalText;
+                        buttonElement.style.backgroundColor = originalBgColor;
+                    }, 2000);
+                }).catch(function(err) {
+                    alert('复制失败: ' + err);
+                });
+            } else {
+                alert('没有可复制的内容');
+            }
+        }
+    </script>
+</body>
+</html> 

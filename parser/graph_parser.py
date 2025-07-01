@@ -343,20 +343,118 @@ class GraphBuilder:
         return unique_entry_nodes
     
     def _extract_blueprint_name(self, raw_objects: List[RawObject]) -> str:
-        """从原始对象中提取蓝图名称"""
-        # 从第一个对象的属性中查找
+        """从原始对象中提取蓝图名称 - 多源瀑布式策略"""
+        # 优先级1: 从ExportPath提取
+        name = self._extract_from_export_path(raw_objects)
+        if name and name != "UnknownBlueprint":
+            return name
+        
+        # 优先级2: 从WidgetTree提取（仅Widget蓝图）
+        name = self._extract_from_widget_tree(raw_objects)
+        if name and name != "UnknownBlueprint":
+            return name
+        
+        # 优先级3: 基于频率分析的智能提取
+        name = self._extract_by_frequency(raw_objects)
+        if name and name != "UnknownBlueprint":
+            return name
+        
+        return "UnknownBlueprint"
+    
+    def _extract_from_export_path(self, raw_objects: List[RawObject]) -> str:
+        """从ExportPath属性提取蓝图名称（最可靠）"""
+        for obj in raw_objects:
+            export_path = obj.properties.get("ExportPath", "")
+            if not export_path or ":" not in export_path:
+                continue
+            
+            # ExportPath格式: ".../WBP_AbilitiesMenu.WBP_AbilitiesMenu:EventGraph.K2Node_Event_0'"
+            # 提取冒号前的部分
+            blueprint_part = export_path.split(":")[0]
+            
+            # 提取最后一个路径段中的资产名
+            match = re.search(r"/([^/]+)\.([^'\"]+)$", blueprint_part)
+            if match:
+                folder_name = match.group(1)
+                asset_name = match.group(2)
+                # 通常folder_name和asset_name相同，表示这是主蓝图
+                if folder_name == asset_name:
+                    return asset_name.replace("_C", "")
+        
+        return "UnknownBlueprint"
+    
+    def _extract_from_widget_tree(self, raw_objects: List[RawObject]) -> str:
+        """从WidgetTree根节点提取蓝图名称（Widget专用）"""
+        for obj in raw_objects:
+            if obj.class_type == "WidgetTree":
+                root_widget = obj.properties.get("RootWidget", "")
+                if root_widget:
+                    # 格式: "WidgetBlueprint'WBP_Name_C'"
+                    match = re.search(r"'([^']+)_C'", root_widget)
+                    if match:
+                        return match.group(1)
+        
+        return "UnknownBlueprint"
+    
+    def _extract_by_frequency(self, raw_objects: List[RawObject]) -> str:
+        """基于频率分析的智能名称提取"""
+        from collections import Counter
+        
+        # 收集所有可能的蓝图名称
+        candidates = []
+        
         for obj in raw_objects:
             for prop_key, prop_value in obj.properties.items():
-                # 跳过 CustomProperties Pin 属性
+                # 跳过Pin属性，避免捕获引用的外部类型
                 if prop_key.startswith("CustomProperties Pin"):
                     continue
-                    
-                # 查找包含路径信息的属性
+                
                 if isinstance(prop_value, str):
-                    name_match = re.search(r"/Game/.*(?:/|')(?P<asset_name>[^/.]+)\.", prop_value)
-                    if name_match:
-                        return name_match.group("asset_name")
+                    # 查找所有路径格式的资产引用
+                    matches = re.findall(r"/Game/[^'\"]*?/([^/'\"]+)\.([^'\"]+)", prop_value)
+                    for folder_name, asset_name in matches:
+                        # 清理后缀
+                        clean_name = asset_name.replace("_C", "")
+                        
+                        # 过滤明显的外部引用
+                        if self._is_likely_external_reference(clean_name):
+                            continue
+                        
+                        # 如果文件夹名和资产名相似，很可能是主蓝图
+                        if self._names_are_similar(folder_name, clean_name):
+                            candidates.append(clean_name)
+        
+        # 返回出现频率最高的名称
+        if candidates:
+            counter = Counter(candidates)
+            most_common = counter.most_common(1)[0]
+            return most_common[0]
+        
         return "UnknownBlueprint"
+    
+    def _is_likely_external_reference(self, name: str) -> bool:
+        """判断是否可能是外部引用的资产"""
+        # 常见的UI控件类型
+        ui_widget_patterns = [
+            r"^(Button|Panel|Text|Image|Border|Canvas|Overlay|Grid|Spacer)$",
+            r"^WBP_.*?(Button|Panel|Icon|Item|Slot)s?$",  # 复数形式
+            r"^BP_.*?(Component|Actor|Controller)$"
+        ]
+        
+        for pattern in ui_widget_patterns:
+            if re.match(pattern, name, re.IGNORECASE):
+                return True
+        
+        return False
+    
+    def _names_are_similar(self, name1: str, name2: str) -> bool:
+        """判断两个名称是否相似（忽略大小写和下划线）"""
+        # 标准化名称：转小写，移除下划线
+        norm1 = name1.lower().replace("_", "")
+        norm2 = name2.lower().replace("_", "")
+        
+        # 完全匹配或互相包含
+        return norm1 == norm2 or norm1 in norm2 or norm2 in norm1
 
 
 
@@ -377,6 +475,9 @@ class GraphBuilder:
 def parse_blueprint_graph(graph_text: str, graph_name: str = "EventGraph") -> Optional[BlueprintGraph]:
     """
     主函数：解析蓝图Graph文本并返回BlueprintGraph对象
+    
+    注意：此函数保持向后兼容，返回BlueprintGraph对象
+    新代码应使用 parse_blueprint_graph_v2 获取完整的解析结果
     """
     if not graph_text or not graph_text.strip():
         return None
@@ -390,4 +491,73 @@ def parse_blueprint_graph(graph_text: str, graph_name: str = "EventGraph") -> Op
     
     # 第二阶段：使用 Graph 构建器构建 BlueprintGraph
     graph_builder = GraphBuilder()
-    return graph_builder.build(raw_objects, graph_name) 
+    return graph_builder.build(raw_objects, graph_name)
+
+
+def parse_blueprint_graph_v2(graph_text: str, graph_name: str = "EventGraph") -> 'BlueprintParseResult':
+    """
+    新版本：解析蓝图Graph文本并返回统一的解析结果
+    """
+    from .models import BlueprintParseResult
+    
+    if not graph_text or not graph_text.strip():
+        return BlueprintParseResult(
+            blueprint_name="UnknownBlueprint",
+            blueprint_path="",
+            content=None,
+            success=False,
+            error_message="输入文本为空"
+        )
+    
+    try:
+        # 第一阶段：使用通用解析器解析文本
+        object_parser = BlueprintObjectParser()
+        raw_objects = object_parser.parse(graph_text)
+        
+        if not raw_objects:
+            return BlueprintParseResult(
+                blueprint_name="UnknownBlueprint",
+                blueprint_path="",
+                content=None,
+                success=False,
+                error_message="无法解析蓝图文本格式"
+            )
+        
+        # 第二阶段：使用 Graph 构建器构建 BlueprintGraph
+        graph_builder = GraphBuilder()
+        graph = graph_builder.build(raw_objects, graph_name)
+        
+        if not graph:
+            return BlueprintParseResult(
+                blueprint_name="UnknownBlueprint",
+                blueprint_path="",
+                content=None,
+                success=False,
+                error_message="无法构建蓝图图结构"
+            )
+        
+        # 提取蓝图名称和路径
+        blueprint_name = graph.graph_name.split(" ")[0] if " " in graph.graph_name else graph.graph_name
+        
+        # 尝试提取完整路径
+        blueprint_path = ""
+        path_match = re.search(r"/Game/[^'\"]+\.([^'\"]+)", graph_text)
+        if path_match:
+            blueprint_path = path_match.group(0)
+        
+        return BlueprintParseResult(
+            blueprint_name=blueprint_name,
+            blueprint_path=blueprint_path,
+            content=graph,
+            success=True,
+            error_message=None
+        )
+        
+    except Exception as e:
+        return BlueprintParseResult(
+            blueprint_name="UnknownBlueprint",
+            blueprint_path="",
+            content=None,
+            success=False,
+            error_message=f"解析过程中发生错误: {str(e)}"
+        ) 

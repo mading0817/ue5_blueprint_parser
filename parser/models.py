@@ -275,9 +275,6 @@ class CastExpression(Expression):
         return visitor.visit_cast_expression(self)
 
 
-
-
-
 @dataclass
 class TemporaryVariableExpression(Expression):
     """
@@ -507,9 +504,6 @@ class LoopNode(Statement):
         return visitor.visit_loop_node(self)
 
 
-
-
-
 @dataclass
 class LatentActionNode(Statement):
     """
@@ -522,9 +516,6 @@ class LatentActionNode(Statement):
     
     def accept(self, visitor):
         return visitor.visit_latent_action_node(self)
-
-
-
 
 
 # ============================================================================
@@ -593,3 +584,16 @@ class UnsupportedNode(Statement):
 
 # Type aliases for convenience
 ASTNodeType = Union[Expression, Statement]
+
+# ================================================================
+# 统一解析结果契约
+# ================================================================
+
+@dataclass
+class BlueprintParseResult:
+    """统一的蓝图解析结果契约"""
+    blueprint_name: str
+    blueprint_path: str
+    content: Any  # 解析后的AST或Widget节点树
+    success: bool
+    error_message: Optional[str] = None
