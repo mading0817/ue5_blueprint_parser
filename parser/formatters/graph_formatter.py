@@ -484,7 +484,7 @@ class MarkdownEventGraphFormatter(ASTVisitor, Formatter):
         return ""
     
     def visit_variable_declaration(self, node: VariableDeclaration) -> str:
-        """访问变量声明"""
+        """访问变量声明 - 移除declare关键字以简化输出"""
         if self.strategy.should_show_type_info():
             type_info = f": {node.variable_type}" if node.variable_type and node.variable_type != "unknown" else ""
         else:
@@ -492,8 +492,10 @@ class MarkdownEventGraphFormatter(ASTVisitor, Formatter):
         
         if node.initial_value:
             initial_value_str = node.initial_value.accept(self)
-            self._add_line(f"declare {node.variable_name}{type_info} = {initial_value_str}")
+            # 移除declare关键字，直接使用赋值格式
+            self._add_line(f"{node.variable_name}{type_info} = {initial_value_str}")
         else:
+            # 对于没有初始值的声明，保留declare关键字以明确这是声明
             self._add_line(f"declare {node.variable_name}{type_info}")
         
         return ""

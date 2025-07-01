@@ -77,6 +77,7 @@ def process_variable_set(analyzer, context, node) -> Optional[AssignmentNode]:
     """
     处理变量赋值节点
     K2Node_VariableSet -> AssignmentNode
+    增强：智能识别cast-and-assign模式，抑制冗余赋值
     """
     # 使用统一工具函数提取变量信息
     var_name, is_self_context = extract_variable_reference(node)
@@ -94,6 +95,29 @@ def process_variable_set(analyzer, context, node) -> Optional[AssignmentNode]:
     value_expr = analyzer._resolve_data_expression(context, value_pin) if value_pin else LiteralExpression(
         value="null", literal_type="null"
     )
+    
+    # 智能抑制逻辑：检查是否为cast-and-assign模式的冗余赋值
+    if isinstance(value_expr, CastExpression):
+        # 检查符号表中是否已存在该变量，且其初始值为相同的CastExpression
+        symbol = context.symbol_table.lookup(var_name)
+        
+        if (symbol and 
+            hasattr(symbol.declaration, 'initial_value') and
+            isinstance(symbol.declaration.initial_value, CastExpression)):
+            
+            # 比较两个CastExpression是否来自同一个蓝图节点
+            # 通过比较source_location的node_guid来精确判断
+            current_cast_location = value_expr.source_location
+            existing_cast_location = symbol.declaration.initial_value.source_location
+            
+            if (current_cast_location and existing_cast_location and
+                hasattr(current_cast_location, 'node_guid') and
+                hasattr(existing_cast_location, 'node_guid') and
+                current_cast_location.node_guid == existing_cast_location.node_guid):
+                
+                # 这是一个冗余的cast-and-assign赋值，抑制AssignmentNode的生成
+                # 抑制冗余的cast赋值，因为变量已在cast成功分支中声明并初始化
+                return None
     
     # 解析目标对象
     self_pin = find_pin(node, "self", "input")
@@ -308,8 +332,14 @@ def process_dynamic_cast(analyzer, context, node) -> Optional[BranchNode]:
     target_type_name = parse_object_path(target_type) or "UnknownType"
     
     # 动态获取正确的变量名（从输出引脚获取，保留空格）
-    as_pin = next((p for p in node.pins if p.direction == "output" and p.pin_type != "exec" and p.pin_name.startswith("As ")), None)
+    as_pin = next((p for p in node.pins if p.direction == "output" and p.pin_type != "exec" and p.pin_name.startswith("As")), None)
     cast_var_name = as_pin.pin_name if as_pin else f"As {target_type_name}"
+    
+    # 修正变量名：将"AsAbilities Equipped Panel Controller"转换为"As Abilities Equipped Panel Controller"
+    # 这是为了匹配K2Node_VariableSet中VariableReference.MemberName的格式
+    if cast_var_name.startswith("As") and not cast_var_name.startswith("As "):
+        # 在"As"后插入空格，将"AsAbilities"变为"As Abilities"
+        cast_var_name = "As " + cast_var_name[2:]
     
     # 创建转换表达式
     cast_expr = CastExpression(

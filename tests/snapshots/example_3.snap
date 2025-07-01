@@ -19,6 +19,5 @@
 #### Event: WidgetControllerSet
 
   if (cast(WidgetController as AbilitiesMenuController)):
-    declare As AbilitiesMenuController = cast(WidgetController as AbilitiesMenuController)
     As Abilities Menu Controller = cast(WidgetController as AbilitiesMenuController)
   As Abilities Menu Controller.BindChildWidgets(InCoreAreaWidget: WBP_AbilitiesCoreArea, InEquippedPanelWidget: WBP_AbilitiesEquippedPanel)
