@@ -530,7 +530,24 @@ class GraphAnalyzer:
                                    "/Script/BlueprintGraph.K2Node_Event", 
                                    "/Script/BlueprintGraph.K2Node_CustomEvent",
                                    "/Script/BlueprintGraph.K2Node_ComponentBoundEvent"]:
-                # 事件节点作为数据源时，返回EventReferenceExpression
+                # 核心修复：检查是否引用事件的输出数据引脚
+                if pin_id:
+                    # 在事件节点的引脚列表中查找指定的pin_id
+                    for pin in node.pins:
+                        if pin.pin_id == pin_id and pin.direction == "output" and pin.pin_type != "exec":
+                            # 找到匹配的非exec类型输出引脚，创建PropertyAccessNode
+                            event_name = extract_event_name(node)
+                            event_ref = EventReferenceExpression(
+                                event_name=event_name,
+                                source_location=create_source_location(node)
+                            )
+                            return PropertyAccessNode(
+                                target=event_ref,
+                                property_name=pin.pin_name,
+                                source_location=create_source_location(node)
+                            )
+                
+                # 没有找到匹配的数据引脚或pin_id为空，返回事件引用
                 event_name = extract_event_name(node)
                 return EventReferenceExpression(
                     event_name=event_name,

@@ -12,7 +12,7 @@
 
 #### Event: Construct
 
-  OnAttributesMenuButtonClicked_Event += WBP_AttributesMenuButton.Button
+  OnAttributesMenuButtonClicked_Event.OutputDelegate += WBP_AttributesMenuButton.Button
   // Fallback: /Script/BlueprintGraph.K2Node_AddDelegate (K2Node_AddDelegate_0)
 
 #### Event: OnAttributesMenuButtonClicked_Event

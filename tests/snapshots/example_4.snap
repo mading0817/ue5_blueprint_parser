@@ -5,17 +5,17 @@
 
 #### Event: OnMenuOpenChanged_Event(bIsOpen)
 
-  if (OnMenuOpenChanged_Event):
+  if (OnMenuOpenChanged_Event.bIsOpen):
     // 空分支
   else:
     As Attributes Menu Controller.HandleCloseButtonClicked()
 
 #### Event: Construct
 
-  CloseAttributesMenu += CloseButton.Button
-  OnMenuOpenChanged_Event += ParentMenuAnchor
-  OnClicked_Event += WBP_ResetButton.Button
-  OnClicked_Event_0 += WBP_SummitButton.Button
+  CloseAttributesMenu.OutputDelegate += CloseButton.Button
+  OnMenuOpenChanged_Event.OutputDelegate += ParentMenuAnchor
+  OnClicked_Event.OutputDelegate += WBP_ResetButton.Button
+  OnClicked_Event_0.OutputDelegate += WBP_SummitButton.Button
 
 #### Event: OnClicked_Event
 

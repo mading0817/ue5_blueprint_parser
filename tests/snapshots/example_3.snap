@@ -1,8 +1,8 @@
 #### Event: PreConstruct(IsDesignTime)
 
-  OnClicked_Event += WBP_SkillCategoryButtons.WBP_Equipped_Button.Button
-  OnClicked_Event_0 += WBP_SkillCategoryButtons.WBP_All_Button.Button
-  OnClicked_Event_1 += WBP_CloseButton.Button
+  OnClicked_Event.OutputDelegate += WBP_SkillCategoryButtons.WBP_Equipped_Button.Button
+  OnClicked_Event_0.OutputDelegate += WBP_SkillCategoryButtons.WBP_All_Button.Button
+  OnClicked_Event_1.OutputDelegate += WBP_CloseButton.Button
 
 #### Event: OnClicked_Event
 
