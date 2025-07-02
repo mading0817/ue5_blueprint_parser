@@ -14,13 +14,6 @@
             padding-bottom: 1em;
         }
         
-        .blueprint-path {
-            color: #abb2bf;
-            font-size: 0.9em;
-            margin-top: 0.5em;
-            font-family: 'Courier New', Courier, monospace;
-        }
-        
         .input-section {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -44,24 +37,41 @@
             resize: vertical;
         }
         
-        .parse-button {
-            width: 100%;
+        .actions-container {
+            display: flex;
+            justify-content: center;
+            gap: 1em;
+            margin-bottom: 2em;
+        }
+        
+        .parse-button, .copy-all-btn {
+            flex-grow: 1;
             max-width: 300px;
-            margin: 0 auto 2em auto;
-            display: block;
             padding: 15px;
-            background-color: #61afef;
-            color: #21252b;
-            border: none;
             border-radius: 6px;
             font-size: 18px;
             font-weight: bold;
             cursor: pointer;
-            transition: background-color 0.3s;
+            transition: background-color 0.3s, color 0.3s;
+            border: none;
+        }
+        
+        .parse-button {
+            background-color: #61afef;
+            color: #21252b;
         }
         
         .parse-button:hover {
             background-color: #5295c9;
+        }
+        
+        .copy-all-btn {
+            background-color: #4CAF50; /* Green */
+            color: white;
+        }
+        
+        .copy-all-btn:hover {
+            background-color: #45a049;
         }
         
         .results-container {
@@ -147,10 +157,7 @@
         <!-- 蓝图标题区域 -->
         <div class="blueprint-header">
             {% if blueprint_name and blueprint_name != "Unknown Blueprint" %}
-                <h1>{{ blueprint_name }}</h1>
-                {% if blueprint_path %}
-                    <p class="blueprint-path">{{ blueprint_path }}</p>
-                {% endif %}
+                <h1 id="blueprint-name">{{ blueprint_name }}</h1>
             {% else %}
                 <h1>UE5 统一蓝图解析器</h1>
                 <p>同时解析Widget UI结构和EventGraph逻辑</p>
@@ -172,7 +179,10 @@
                 </div>
             </div>
             
-            <button type="submit" class="parse-button">解析蓝图</button>
+            <div class="actions-container">
+                <button type="submit" class="parse-button">解析蓝图</button>
+                <button type="button" onclick="copyAllResults(this)" class="copy-all-btn">复制全部</button>
+            </div>
         </form>
 
         <!-- 结果展示区域 -->
@@ -186,7 +196,7 @@
                 <h2 class="result-header">UI层级结构</h2>
                 <div class="result-content">
                     {% if widget_result %}
-                        <pre><code>{{ widget_result }}</code></pre>
+                        <pre><code id="widget-result-code">{{ widget_result }}</code></pre>
                         <button onclick="copyToClipboard('widget', this)" class="copy-btn">复制Widget结果</button>
                     {% elif widget_error %}
                         <div class="error">{{ widget_error }}</div>
@@ -201,7 +211,7 @@
                 <h2 class="result-header">事件图逻辑</h2>
                 <div class="result-content">
                     {% if graph_result %}
-                        <pre><code>{{ graph_result }}</code></pre>
+                        <pre><code id="graph-result-code">{{ graph_result }}</code></pre>
                         <button onclick="copyToClipboard('graph', this)" class="copy-btn">复制Graph结果</button>
                     {% elif graph_error %}
                         <div class="error">{{ graph_error }}</div>
@@ -214,28 +224,74 @@
     </div>
 
     <script>
+        /**
+         * @description 显示复制成功的视觉反馈
+         * @param {HTMLElement} buttonElement - 被点击的按钮元素
+         * @param {string} originalText - 按钮的原始文本
+         */
+        function showCopyFeedback(buttonElement, originalText = '复制') {
+            const originalBgColor = buttonElement.style.backgroundColor;
+            
+            buttonElement.innerText = '已复制!';
+            buttonElement.style.backgroundColor = '#28a745';
+            
+            setTimeout(function() {
+                buttonElement.innerText = originalText;
+                buttonElement.style.backgroundColor = originalBgColor;
+            }, 2000);
+        }
+
+        /**
+         * @description 复制单个区域 (Widget 或 Graph) 的结果到剪贴板
+         * @param {'widget'|'graph'} type - 要复制的结果类型
+         * @param {HTMLElement} buttonElement - 被点击的按钮元素
+         */
         function copyToClipboard(type, buttonElement) {
-            let resultText = '';
-            if (type === 'widget') {
-                const widgetResult = document.querySelector('.result-section:first-of-type pre code');
-                resultText = widgetResult ? widgetResult.innerText : '';
-            } else if (type === 'graph') {
-                const graphResult = document.querySelector('.result-section:last-of-type pre code');
-                resultText = graphResult ? graphResult.innerText : '';
-            }
+            const elementId = type === 'widget' ? 'widget-result-code' : 'graph-result-code';
+            const resultElement = document.getElementById(elementId);
+            const resultText = resultElement ? resultElement.innerText : '';
             
             if (resultText) {
                 navigator.clipboard.writeText(resultText).then(function() {
-                    const originalText = buttonElement.innerText;
-                    const originalBgColor = buttonElement.style.backgroundColor;
-                    
-                    buttonElement.innerText = '已复制!';
-                    buttonElement.style.backgroundColor = '#28a745';
-                    
-                    setTimeout(function() {
-                        buttonElement.innerText = originalText;
-                        buttonElement.style.backgroundColor = originalBgColor;
-                    }, 2000);
+                    showCopyFeedback(buttonElement, buttonElement.innerText);
+                }).catch(function(err) {
+                    alert('复制失败: ' + err);
+                });
+            } else {
+                alert('没有可复制的内容');
+            }
+        }
+
+        /**
+         * @description 复制所有结果 (蓝图名称, Widget, Graph) 到剪贴板
+         * @param {HTMLElement} buttonElement - 被点击的按钮元素
+         */
+        function copyAllResults(buttonElement) {
+            const blueprintNameEl = document.getElementById('blueprint-name');
+            const widgetResultEl = document.getElementById('widget-result-code');
+            const graphResultEl = document.getElementById('graph-result-code');
+
+            let combinedText = '';
+            let contentFound = false;
+
+            if (blueprintNameEl && blueprintNameEl.innerText) {
+                combinedText += `蓝图名称: ${blueprintNameEl.innerText}\n\n`;
+                contentFound = true;
+            }
+
+            if (widgetResultEl && widgetResultEl.innerText) {
+                combinedText += `## UI层级结构\n\n${widgetResultEl.innerText}\n\n`;
+                contentFound = true;
+            }
+
+            if (graphResultEl && graphResultEl.innerText) {
+                combinedText += `## 事件图逻辑\n\n${graphResultEl.innerText}`;
+                contentFound = true;
+            }
+            
+            if (contentFound) {
+                navigator.clipboard.writeText(combinedText.trim()).then(function() {
+                    showCopyFeedback(buttonElement, '复制全部');
                 }).catch(function(err) {
                     alert('复制失败: ' + err);
                 });
