@@ -44,7 +44,7 @@
             margin-bottom: 2em;
         }
         
-        .parse-button, .copy-all-btn {
+        .parse-button, .copy-all-btn, .save-file-btn {
             flex-grow: 1;
             max-width: 300px;
             padding: 15px;
@@ -72,6 +72,24 @@
         
         .copy-all-btn:hover {
             background-color: #45a049;
+        }
+        
+        .save-file-btn {
+            background-color: #FF9800; /* Orange */
+            color: white;
+        }
+        
+        .save-file-btn:hover:not(:disabled) {
+            background-color: #e68900;
+        }
+        
+        .parse-button:disabled,
+        .copy-all-btn:disabled,
+        .save-file-btn:disabled {
+            background-color: #666666;
+            color: #999999;
+            cursor: not-allowed;
+            opacity: 0.6;
         }
         
         .results-container {
@@ -181,7 +199,8 @@
             
             <div class="actions-container">
                 <button type="submit" class="parse-button">解析蓝图</button>
-                <button type="button" onclick="copyAllResults(this)" class="copy-all-btn">复制全部</button>
+                <button type="button" onclick="copyAllResults(this)" class="copy-all-btn" disabled>复制全部</button>
+                <button type="button" onclick="saveAllResults(this)" class="save-file-btn" disabled>保存文件</button>
             </div>
         </form>
 
@@ -225,6 +244,56 @@
 
     <script>
         /**
+         * @description 获取所有解析结果的内容，供复制和保存功能复用
+         * @returns {Object} 包含 combinedText 和 contentFound 的对象
+         */
+        function getAllResultsContent() {
+            const blueprintNameEl = document.getElementById('blueprint-name');
+            const widgetResultEl = document.getElementById('widget-result-code');
+            const graphResultEl = document.getElementById('graph-result-code');
+
+            let combinedText = '';
+            let contentFound = false;
+
+            if (blueprintNameEl && blueprintNameEl.innerText) {
+                combinedText += `蓝图名称: ${blueprintNameEl.innerText}\n\n`;
+                contentFound = true;
+            }
+
+            if (widgetResultEl && widgetResultEl.innerText) {
+                combinedText += `## UI层级结构\n\n${widgetResultEl.innerText}\n\n`;
+                contentFound = true;
+            }
+
+            if (graphResultEl && graphResultEl.innerText) {
+                combinedText += `## 事件图逻辑\n\n${graphResultEl.innerText}`;
+                contentFound = true;
+            }
+
+            return {
+                combinedText: combinedText.trim(),
+                contentFound: contentFound,
+                blueprintName: blueprintNameEl ? blueprintNameEl.innerText : 'Unknown'
+            };
+        }
+
+        /**
+         * @description 更新按钮状态 - 根据是否有解析结果来启用/禁用按钮
+         */
+        function updateButtonStates() {
+            const { contentFound } = getAllResultsContent();
+            const copyAllBtn = document.querySelector('.copy-all-btn');
+            const saveFileBtn = document.querySelector('.save-file-btn');
+
+            if (copyAllBtn) {
+                copyAllBtn.disabled = !contentFound;
+            }
+            if (saveFileBtn) {
+                saveFileBtn.disabled = !contentFound;
+            }
+        }
+
+        /**
          * @description 显示复制成功的视觉反馈
          * @param {HTMLElement} buttonElement - 被点击的按钮元素
          * @param {string} originalText - 按钮的原始文本
@@ -233,6 +302,23 @@
             const originalBgColor = buttonElement.style.backgroundColor;
             
             buttonElement.innerText = '已复制!';
+            buttonElement.style.backgroundColor = '#28a745';
+            
+            setTimeout(function() {
+                buttonElement.innerText = originalText;
+                buttonElement.style.backgroundColor = originalBgColor;
+            }, 2000);
+        }
+
+        /**
+         * @description 显示保存成功的视觉反馈
+         * @param {HTMLElement} buttonElement - 被点击的按钮元素
+         * @param {string} originalText - 按钮的原始文本
+         */
+        function showSaveFeedback(buttonElement, originalText = '保存文件') {
+            const originalBgColor = buttonElement.style.backgroundColor;
+            
+            buttonElement.innerText = '已保存!';
             buttonElement.style.backgroundColor = '#28a745';
             
             setTimeout(function() {
@@ -267,30 +353,10 @@
          * @param {HTMLElement} buttonElement - 被点击的按钮元素
          */
         function copyAllResults(buttonElement) {
-            const blueprintNameEl = document.getElementById('blueprint-name');
-            const widgetResultEl = document.getElementById('widget-result-code');
-            const graphResultEl = document.getElementById('graph-result-code');
-
-            let combinedText = '';
-            let contentFound = false;
-
-            if (blueprintNameEl && blueprintNameEl.innerText) {
-                combinedText += `蓝图名称: ${blueprintNameEl.innerText}\n\n`;
-                contentFound = true;
-            }
-
-            if (widgetResultEl && widgetResultEl.innerText) {
-                combinedText += `## UI层级结构\n\n${widgetResultEl.innerText}\n\n`;
-                contentFound = true;
-            }
-
-            if (graphResultEl && graphResultEl.innerText) {
-                combinedText += `## 事件图逻辑\n\n${graphResultEl.innerText}`;
-                contentFound = true;
-            }
+            const { combinedText, contentFound } = getAllResultsContent();
             
             if (contentFound) {
-                navigator.clipboard.writeText(combinedText.trim()).then(function() {
+                navigator.clipboard.writeText(combinedText).then(function() {
                     showCopyFeedback(buttonElement, '复制全部');
                 }).catch(function(err) {
                     alert('复制失败: ' + err);
@@ -299,6 +365,62 @@
                 alert('没有可复制的内容');
             }
         }
+
+        /**
+         * @description 保存所有结果到本地文件
+         * @param {HTMLElement} buttonElement - 被点击的按钮元素
+         */
+        function saveAllResults(buttonElement) {
+            try {
+                const { combinedText, contentFound, blueprintName } = getAllResultsContent();
+                
+                if (!contentFound) {
+                    alert('没有可保存的内容');
+                    return;
+                }
+
+                // 生成动态文件名
+                const sanitizedName = blueprintName.replace(/[^a-zA-Z0-9_\-]/g, '_');
+                const filename = `${sanitizedName}_logic.md`;
+
+                // 创建Blob对象
+                const blob = new Blob([combinedText], { type: 'text/markdown;charset=utf-8' });
+                
+                // 创建临时URL
+                const url = URL.createObjectURL(blob);
+                
+                // 创建隐藏的下载链接
+                const downloadLink = document.createElement('a');
+                downloadLink.href = url;
+                downloadLink.download = filename;
+                downloadLink.style.display = 'none';
+                
+                // 添加到DOM，点击，然后移除
+                document.body.appendChild(downloadLink);
+                downloadLink.click();
+                document.body.removeChild(downloadLink);
+                
+                // 清理临时URL
+                URL.revokeObjectURL(url);
+                
+                // 显示成功反馈
+                showSaveFeedback(buttonElement, '保存文件');
+                
+            } catch (error) {
+                console.error('保存文件时发生错误:', error);
+                alert('保存文件失败: ' + error.message);
+            }
+        }
+
+        // 页面加载完成后更新按钮状态
+        document.addEventListener('DOMContentLoaded', function() {
+            updateButtonStates();
+        });
+
+        // 如果页面是通过表单提交重新加载的，也需要更新按钮状态
+        window.addEventListener('load', function() {
+            updateButtonStates();
+        });
     </script>
 </body>
 </html> 

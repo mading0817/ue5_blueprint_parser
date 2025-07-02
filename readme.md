@@ -89,27 +89,35 @@ The UE5 Blueprint Parser features a streamlined web interface that allows simult
 
 ### Key Features
 
-1.  **Unified Single-Page Interface**: Parse both Widget and Graph blueprints simultaneously without page switching
-2.  **Smart Blueprint Name Extraction**: Automatically extracts and displays the blueprint name and path from input text
-3.  **Conditional Parsing**: Only processes provided content - empty text areas are gracefully handled
-4.  **Maximum Detail Output**: Hardcoded to use `show_properties=True` for widgets and `VerboseStrategy` for graphs
-5.  **Error Resilience**: Partial success handling - displays results for successful parsing while showing clear error messages for failed sections
+1.  **Unified Single-Page Interface**: Parse both Widget and Graph blueprints simultaneously without page switching.
+2.  **Smart Blueprint Name Extraction**: Automatically extracts and displays the blueprint name from the input text.
+3.  **One-Click Export**:
+    - **Copy All**: Instantly copy the blueprint name, UI hierarchy, and EventGraph logic to your clipboard.
+    - **Save File**: Download all parsed content as a clean, structured `.md` file. The filename is automatically generated from the blueprint's name (e.g., `WBP_MainMenu_logic.md`).
+4.  **Smart Action Buttons**: The "Copy All" and "Save File" buttons are disabled by default and are intelligently activated only after a successful parse, ensuring a smooth user experience.
+5.  **Maximum Detail Output**: Hardcoded to use `show_properties=True` for widgets and `VerboseStrategy` for graphs, providing the most comprehensive output by default.
+6.  **Error Resilience**: Displays results for successful parsing while showing clear error messages for failed sections.
 
 ### Usage
 
 1.  **Start the Application**:
     ```bash
-    .venv/Scripts/python app.py
+    # On Windows with PowerShell
+    .venv\Scripts\python app.py
     ```
 
-2.  **Access the Interface**: Open `http://127.0.0.1:8080` in your browser
+2.  **Access the Interface**: Open `http://127.0.0.1:8080` in your browser.
 
 3.  **Input Blueprint Text**: 
-    - Paste Widget blueprint text in the left text area
-    - Paste EventGraph blueprint text in the right text area
-    - Either or both can be provided
+    - Paste Widget blueprint text in the left text area.
+    - Paste EventGraph blueprint text in the right text area.
+    - Either or both can be provided.
 
-4.  **Parse and View Results**: Click "解析蓝图" to process both inputs and view the structured outputs
+4.  **Parse**: Click "解析蓝图" to process the input.
+
+5.  **Export Results**: Once parsing is complete, use the activated buttons:
+    - Click **"复制全部"** to copy all results to the clipboard.
+    - Click **"保存文件"** to trigger a browser download of the results as a `.md` file.
 
 ## Testing and Snapshot Workflow
 
